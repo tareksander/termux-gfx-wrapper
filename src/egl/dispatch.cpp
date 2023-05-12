@@ -2,142 +2,220 @@
 
 
 // Short for for casting the EGLDisplay and calling a function.
-#define CALLD(disp, name) std::unique_lock<std::mutex> l{reinterpret_cast<EGLDisplayBackend*>(disp)->lock}; return reinterpret_cast<EGLDisplayBackend*>(disp)->name
+#define CALLD(name) std::unique_lock<std::mutex> l{reinterpret_cast<EGLDisplayBackend*>(d)->lock}; return reinterpret_cast<EGLDisplayBackend*>(d)->name
 
 
 namespace egl_wrapper::dispatch {
     // EGL 1.0
     EGLBoolean eglChooseConfig(EGLDisplay d, const EGLint* attrib_list, EGLConfig* configs, EGLint config_size, EGLint* num_config) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglChooseConfig)(attrib_list, configs, config_size, num_config);
+            CALLD(eglChooseConfig)(attrib_list, configs, config_size, num_config);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglCopyBuffers(EGLDisplay d, EGLSurface surface, EGLNativePixmapType target) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d,eglCopyBuffers)(surface, target);
+            CALLD(eglCopyBuffers)(surface, target);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLContext eglCreateContext(EGLDisplay d, EGLConfig config, EGLContext share_context, const EGLint* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreateContext)(config, share_context, attrib_list);
+            CALLD(eglCreateContext)(config, share_context, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_CONTEXT;
     }
     
     
     EGLSurface eglCreatePbufferSurface(EGLDisplay d, EGLConfig config, const EGLint* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreatePbufferSurface)(config, attrib_list);
+            CALLD(eglCreatePbufferSurface)(config, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SURFACE;
     }
     
     
     EGLSurface eglCreatePixmapSurface(EGLDisplay d, EGLConfig config, EGLNativePixmapType pixmap, const EGLint* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreatePixmapSurface)(config, pixmap, attrib_list);
+            CALLD(eglCreatePixmapSurface)(config, pixmap, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SURFACE;
     }
     
     
     EGLSurface eglCreateWindowSurface(EGLDisplay d, EGLConfig config, EGLNativeWindowType win, const EGLint* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreateWindowSurface)(config, win, attrib_list);
+            CALLD(eglCreateWindowSurface)(config, win, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SURFACE;
     }
     
     
     EGLBoolean eglDestroyContext(EGLDisplay d, EGLContext ctx) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglDestroyContext)(ctx);
+            CALLD(eglDestroyContext)(ctx);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglDestroySurface(EGLDisplay d, EGLSurface surface) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglDestroySurface)(surface);
+            CALLD(eglDestroySurface)(surface);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglGetConfigAttrib(EGLDisplay d, EGLConfig config, EGLint attribute, EGLint* value) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglGetConfigAttrib)(config, attribute, value);
+            CALLD(eglGetConfigAttrib)(config, attribute, value);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglGetConfigs(EGLDisplay d, EGLConfig* configs, EGLint config_size, EGLint* num_config) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglGetConfigs)(configs, config_size, num_config);
+            CALLD(eglGetConfigs)(configs, config_size, num_config);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
+    EGLint eglGetError(void) {
+        fprintf(stdout, "eglGetError\n");
+        fflush(stdout);
+        EGLint e = lastError;
+        lastError = EGL_SUCCESS;
+        return e;
+    }
+    
+    
     EGLBoolean eglInitialize(EGLDisplay d, EGLint* major, EGLint* minor) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
+        fprintf(stdout, "eglInitialize\n");
+        fflush(stdout);
         try {
-            CALLD(d, eglInitialize)(major, minor);
+            CALLD(eglInitialize)(major, minor);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglMakeCurrent(EGLDisplay d, EGLSurface draw, EGLSurface read, EGLContext ctx) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglMakeCurrent)(draw, read, ctx);
+            CALLD(eglMakeCurrent)(draw, read, ctx);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglQueryContext(EGLDisplay d, EGLContext ctx, EGLint attribute, EGLint* value) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglQueryContext)(ctx, attribute, value);
+            CALLD(eglQueryContext)(ctx, attribute, value);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     const char* eglQueryString(EGLDisplay d, EGLint name) {
+        if (d == EGL_NO_DISPLAY) {
+            return PLATFORMS_STRING;
+        }
         try {
-            CALLD(d, eglQueryString)(name);
+            CALLD(eglQueryString)(name);
         } CATCH_EGL_EXCEPTIONS
         return NULL;
     }
     
     
     EGLBoolean eglQuerySurface(EGLDisplay d, EGLSurface surface, EGLint attribute, EGLint* value) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglQuerySurface)(surface, attribute, value);
+            CALLD(eglQuerySurface)(surface, attribute, value);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglSwapBuffers(EGLDisplay d, EGLSurface surface) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglSwapBuffers)(surface);
+            CALLD(eglSwapBuffers)(surface);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglTerminate(EGLDisplay d) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglTerminate)();
+            CALLD(eglTerminate)();
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
@@ -157,32 +235,48 @@ namespace egl_wrapper::dispatch {
     
     // EGL 1.1
     EGLBoolean eglBindTexImage(EGLDisplay d, EGLSurface surface, EGLint buffer) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglBindTexImage)(surface, buffer);
+            CALLD(eglBindTexImage)(surface, buffer);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglReleaseTexImage(EGLDisplay d, EGLSurface surface, EGLint buffer) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglReleaseTexImage)(surface, buffer);
+            CALLD(eglReleaseTexImage)(surface, buffer);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglSurfaceAttrib(EGLDisplay d, EGLSurface surface, EGLint attribute, EGLint value) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglSurfaceAttrib)(surface, attribute, value);
+            CALLD(eglSurfaceAttrib)(surface, attribute, value);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglSwapInterval(EGLDisplay d, EGLint interval) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglSwapInterval)(interval);
+            CALLD(eglSwapInterval)(interval);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
@@ -214,72 +308,108 @@ namespace egl_wrapper::dispatch {
     
     // EGL 1.5
     EGLSync eglCreateSync(EGLDisplay d, EGLenum type, const EGLAttrib* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreateSync)(type, attrib_list);
+            CALLD(eglCreateSync)(type, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SYNC;
     }
     
     
     EGLBoolean eglDestroySync(EGLDisplay d, EGLSync sync) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglDestroySync)(sync);
+            CALLD(eglDestroySync)(sync);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLint eglClientWaitSync(EGLDisplay d, EGLSync sync, EGLint flags, EGLTime timeout) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglClientWaitSync)(sync, flags, timeout);
+            CALLD(eglClientWaitSync)(sync, flags, timeout);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLBoolean eglGetSyncAttrib(EGLDisplay d, EGLSync sync, EGLint attribute, EGLAttrib* value) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglGetSyncAttrib)(sync, attribute, value);
+            CALLD(eglGetSyncAttrib)(sync, attribute, value);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLImage eglCreateImage(EGLDisplay d, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d,eglCreateImage)(ctx, target, buffer, attrib_list);
+            CALLD(eglCreateImage)(ctx, target, buffer, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_IMAGE;
     }
     
     
     EGLBoolean eglDestroyImage(EGLDisplay d, EGLImage image) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglDestroyImage)(image);
+            CALLD(eglDestroyImage)(image);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }
     
     
     EGLSurface eglCreatePlatformWindowSurface(EGLDisplay d, EGLConfig config, void* native_window, const EGLAttrib* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreatePlatformWindowSurface)(config, native_window, attrib_list);
+            CALLD(eglCreatePlatformWindowSurface)(config, native_window, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SURFACE;
     }
     
     
     EGLSurface eglCreatePlatformPixmapSurface(EGLDisplay d, EGLConfig config, void* native_pixmap, const EGLAttrib* attrib_list) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglCreatePlatformPixmapSurface)(config, native_pixmap, attrib_list);
+            CALLD(eglCreatePlatformPixmapSurface)(config, native_pixmap, attrib_list);
         } CATCH_EGL_EXCEPTIONS
         return EGL_NO_SURFACE;
     }
     
     
     EGLBoolean eglWaitSync(EGLDisplay d, EGLSync sync, EGLint flags) {
+        if (d == EGL_NO_DISPLAY) {
+            lastError = EGL_BAD_DISPLAY;
+            return EGL_FALSE;
+        }
         try {
-            CALLD(d, eglWaitSync)(sync, flags);
+            CALLD(eglWaitSync)(sync, flags);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
     }

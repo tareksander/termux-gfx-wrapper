@@ -131,7 +131,7 @@ namespace egl_wrapper {
     
     
     const char* X11Display::eglQueryString(EGLint name) {
-        
+        return NULL;
     }
     
     

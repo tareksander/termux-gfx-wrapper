@@ -111,6 +111,9 @@ namespace egl_wrapper {
     
     
     
+    thread_local EGLint lastError = EGL_SUCCESS;
+    
+    
     /**
      * @brief Perform library initialisation, should be called by eglMain at libglvnd initialisation.
      * 
@@ -180,14 +183,18 @@ namespace egl_wrapper {
         
         
         // check needed EGL functions
-        if ( // EGL 1.0 functions
+        if ( // EGL 1.0-1.4 functions
             real_eglChooseConfig == NULL ||
+            real_eglCopyBuffers == NULL ||
             real_eglCreateContext == NULL ||
             real_eglCreatePbufferSurface == NULL ||
+            real_eglCreatePixmapSurface == NULL ||
+            real_eglCreateWindowSurface == NULL ||
             real_eglDestroyContext == NULL ||
             real_eglDestroySurface == NULL ||
             real_eglGetConfigAttrib == NULL ||
             real_eglGetConfigs == NULL ||
+            real_eglGetCurrentDisplay == NULL ||
             real_eglGetCurrentSurface == NULL ||
             real_eglGetDisplay == NULL ||
             real_eglGetError == NULL ||
@@ -200,22 +207,36 @@ namespace egl_wrapper {
             real_eglSwapBuffers == NULL ||
             real_eglTerminate == NULL ||
             real_eglWaitGL == NULL ||
-            // EGL 1.1 functions
+            real_eglWaitNative == NULL ||
             real_eglBindTexImage == NULL ||
             real_eglReleaseTexImage == NULL ||
             real_eglSurfaceAttrib == NULL ||
             real_eglSwapInterval == NULL ||
-            // EGL 1.2 functions
             real_eglBindAPI == NULL ||
             real_eglQueryAPI == NULL ||
+            real_eglCreatePbufferFromClientBuffer == NULL ||
             real_eglReleaseThread == NULL ||
             real_eglWaitClient == NULL ||
-            // EGL 1.4 functions
             real_eglGetCurrentContext == NULL
             ) {
             fprintf(stderr, "ERROR: Core EGL functions missing from Android EGL\n");
             fflush(stderr);
             return EGL_FALSE;
+        }
+        
+        if ( // EGL 1.5 functions
+            real_eglCreateSync == NULL ||
+            real_eglDestroySync == NULL ||
+            real_eglClientWaitSync == NULL ||
+            real_eglGetSyncAttrib == NULL ||
+            real_eglCreateImage == NULL ||
+            real_eglDestroyImage == NULL ||
+            real_eglGetPlatformDisplay == NULL ||
+            real_eglCreatePlatformWindowSurface == NULL ||
+            real_eglCreatePlatformPixmapSurface == NULL ||
+            real_eglWaitSync == NULL
+            ) {
+            androidDisplay.egl15 = false;
         }
         
         
@@ -419,6 +440,8 @@ namespace egl_wrapper {
     #endif
     
     EGLDisplay getPlatformDisplay(EGLenum platform, void* nativeDisplay, const EGLAttrib* attrib_list) {
+        fprintf(stderr, "getPlatformDisplay\n");
+        fflush(stderr);
         try {
         if (platform == EGL_NONE) {
             // without the platform defined it's impossible to know what nativeDisplay is
@@ -468,6 +491,9 @@ namespace egl_wrapper {
     }
     
     void* getProcAddress(const char* procName) {
+        if (procName == NULL) return NULL;
+        fprintf(stdout, "getProcAddress: %s\n", procName);
+        fflush(stdout);
         GENERATE_DISPATCH_IF(eglChooseConfig)
         GENERATE_DISPATCH_IF(eglCopyBuffers)
         GENERATE_DISPATCH_IF(eglCreateContext)
@@ -495,6 +521,7 @@ namespace egl_wrapper {
         GENERATE_DISPATCH_IF(eglCreatePbufferFromClientBuffer)
         GENERATE_DISPATCH_IF(eglReleaseThread)
         GENERATE_DISPATCH_IF(eglWaitClient)
+        GENERATE_DISPATCH_IF(eglGetError)
         GENERATE_DISPATCH_IF(eglCreateSync)
         GENERATE_DISPATCH_IF(eglDestroySync)
         GENERATE_DISPATCH_IF(eglClientWaitSync)
@@ -504,7 +531,7 @@ namespace egl_wrapper {
         GENERATE_DISPATCH_IF(eglCreatePlatformWindowSurface)
         GENERATE_DISPATCH_IF(eglCreatePlatformPixmapSurface)
         GENERATE_DISPATCH_IF(eglWaitSync)
-        
+        // TODO GLES functions
         return NULL;
     }
     

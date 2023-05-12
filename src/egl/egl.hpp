@@ -162,6 +162,8 @@ namespace egl_wrapper {
      */
     struct AndroidDisplay : EGLDisplayBackend {
         
+        /// @brief Whether EGL 1.5 is available
+        bool egl15 = true;
         
         
         // EGL 1.0
@@ -358,6 +360,10 @@ namespace egl_wrapper {
     extern std::mutex dispatchLock;
     extern std::unordered_map<std::string, int> dispatchIndexMap;
     
+    /// @brief The last EGL error of the library for a thread
+    extern thread_local EGLint lastError;
+    
+    
     
     EGLDisplay getPlatformDisplay(EGLenum platform, void* nativeDisplay, const EGLAttrib* attrib_list);
     EGLBoolean getSupportsAPI(EGLenum api);
@@ -388,8 +394,7 @@ namespace egl_wrapper {
         //EGLSurface eglGetCurrentSurface(EGLint readdraw);
         // no dispatch needed
         //EGLDisplay eglGetDisplay(EGLNativeDisplayType display_id);
-        // no dispatch needed
-        //EGLint eglGetError(void);
+        EGLint eglGetError(void);
         // no dispatch needed
         //__eglMustCastToProperFunctionPointerType eglGetProcAddress(const char* procname);
         EGLBoolean eglInitialize(EGLDisplay dpy, EGLint* major, EGLint* minor);
@@ -524,20 +529,20 @@ namespace egl_wrapper {
  * 
  */
 #define CATCH_EGL_EXCEPTIONS \
-    catch(const egl_wrapper::Exceptions::NotInitializedException&) { glvnd->setEGLError(EGL_NOT_INITIALIZED); } \
-    catch(const egl_wrapper::Exceptions::BadAccessException&) { glvnd->setEGLError(EGL_BAD_ACCESS); } \
-    catch(const egl_wrapper::Exceptions::BadAllocException&) { glvnd->setEGLError(EGL_BAD_ALLOC); } \
-    catch(const egl_wrapper::Exceptions::BadAttributeException&) { glvnd->setEGLError(EGL_BAD_ATTRIBUTE); } \
-    catch(const egl_wrapper::Exceptions::BadContextException&) { glvnd->setEGLError(EGL_BAD_CONTEXT); } \
-    catch(const egl_wrapper::Exceptions::BadConfigException&) { glvnd->setEGLError(EGL_BAD_CONFIG); } \
-    catch(const egl_wrapper::Exceptions::BadCurrentSurfaceException&) { glvnd->setEGLError(EGL_BAD_CURRENT_SURFACE); } \
-    catch(const egl_wrapper::Exceptions::BadDisplayException&) { glvnd->setEGLError(EGL_BAD_DISPLAY); } \
-    catch(const egl_wrapper::Exceptions::BadSurfaceException&) { glvnd->setEGLError(EGL_BAD_SURFACE); } \
-    catch(const egl_wrapper::Exceptions::BadMatchException&) { glvnd->setEGLError(EGL_BAD_MATCH); } \
-    catch(const egl_wrapper::Exceptions::BadParameterException&) { glvnd->setEGLError(EGL_BAD_PARAMETER); } \
-    catch(const egl_wrapper::Exceptions::BadNativePixmapException&) { glvnd->setEGLError(EGL_BAD_NATIVE_PIXMAP); } \
-    catch(const egl_wrapper::Exceptions::BadNativeWindowException&) { glvnd->setEGLError(EGL_BAD_NATIVE_WINDOW); } \
-    catch(const egl_wrapper::Exceptions::ContextLostException&) { glvnd->setEGLError(EGL_CONTEXT_LOST); }
+    catch(const egl_wrapper::Exceptions::NotInitializedException&) { lastError = (EGL_NOT_INITIALIZED); } \
+    catch(const egl_wrapper::Exceptions::BadAccessException&) { lastError = (EGL_BAD_ACCESS); } \
+    catch(const egl_wrapper::Exceptions::BadAllocException&) { lastError = (EGL_BAD_ALLOC); } \
+    catch(const egl_wrapper::Exceptions::BadAttributeException&) { lastError = (EGL_BAD_ATTRIBUTE); } \
+    catch(const egl_wrapper::Exceptions::BadContextException&) { lastError = (EGL_BAD_CONTEXT); } \
+    catch(const egl_wrapper::Exceptions::BadConfigException&) { lastError = (EGL_BAD_CONFIG); } \
+    catch(const egl_wrapper::Exceptions::BadCurrentSurfaceException&) { lastError = (EGL_BAD_CURRENT_SURFACE); } \
+    catch(const egl_wrapper::Exceptions::BadDisplayException&) { lastError = (EGL_BAD_DISPLAY); } \
+    catch(const egl_wrapper::Exceptions::BadSurfaceException&) { lastError = (EGL_BAD_SURFACE); } \
+    catch(const egl_wrapper::Exceptions::BadMatchException&) { lastError = (EGL_BAD_MATCH); } \
+    catch(const egl_wrapper::Exceptions::BadParameterException&) { lastError = (EGL_BAD_PARAMETER); } \
+    catch(const egl_wrapper::Exceptions::BadNativePixmapException&) { lastError = (EGL_BAD_NATIVE_PIXMAP); } \
+    catch(const egl_wrapper::Exceptions::BadNativeWindowException&) { lastError = (EGL_BAD_NATIVE_WINDOW); } \
+    catch(const egl_wrapper::Exceptions::ContextLostException&) { lastError = (EGL_CONTEXT_LOST); }
 
 
 
