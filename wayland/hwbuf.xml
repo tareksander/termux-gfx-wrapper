@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="hwbuf">
+    <copyright>
+        TODO choose license, probably MIT
+    </copyright>
+    <description summary="Create wl_buffer objects from Android HardwareBuffers">
+        The Android graphics stack doesn't use the same mechanism as regular Linux for sharing graphics buffers. HardwareBuffer objects are used instead. This extension allows clients to use HardwareBuffers as backing buffers for wl_buffer objects, enabling native GLES and vulkan usage for clients on Android.
+    </description>
+    <interface name="hwbuf_manager" version="1">
+        <description summary="Create wl_buffer objects from Android HardwareBuffers">
+            This global object allows clients create wl_buffers associated with a HardwareBuffer.
+            To initialize call set_socket and wait for the socket_received event.
+            After that create_buffer can be called.
+            
+            To destroy the wl_buffer objects, the client has to unmap the buffer memory (if mapped),
+            release bindings to GLES and Vulkan and then destroy the HardwareBuffer, in addition to destroying the wl_buffer object.
+        </description>
+        <request name="destroy" type="destructor">
+            <description summary="Disconnect from the interface">
+                The interface is no longer accessible by the client after this.
+                All wl_buffer objects stay valid.
+            </description>
+        </request>
+        <request name="set_socket">
+            <description summary="Set a unix socket as the HardwareBuffer transfer channel">
+                The wire format for HardwareBuffers isn't stable, so they can't be transferred in this protocol.
+                The Android NDK has stable functions for transferring them over unix sockets though, so this will be used to transfer them.
+                If another socket was already set for this client, the compositor closes the connection and uses the new one instead.
+                Use the display sync request to ensure the compositor is ready to create buffers after this.
+            </description>
+            <arg name="fd" type="fd" summary="the unix socket file descriptor"/>
+        </request>
+        <request name="create_buffer">
+            <description summary="Create a wl_buffer and receive a HardwareBuffer as the backing storage">
+                The compositor will create a HardwareBuffer and corresponding wl_buffer. The hardware buffer is send over the previously set socket.
+                The formats available are the same as advertised by the compositor for wl_shm, if also supported by HardwareBuffers.
+                This includes notably argb8888 and xrgb8888, which are supported by HardwareBuffers and also compositors by default.
+            </description>
+            <arg name="width" type="uint" summary="the width in pixels"/>
+            <arg name="height" type="uint" summary="the height in pixels"/>
+            <arg name="format" type="wl_shm.format" summary="the format"/>
+            <arg name="id" type="new_id" interface="wl_buffer" summary="the new buffer"/>
+        </request>
+    </interface>
+</protocol>
