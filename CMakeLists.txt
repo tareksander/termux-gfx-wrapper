@@ -20,6 +20,7 @@ set(sources-egl
     dispatch
     android-display
     x11-display
+    gles
 )
 list(TRANSFORM sources-egl PREPEND src/egl/)
 list(TRANSFORM sources-egl APPEND .cpp)

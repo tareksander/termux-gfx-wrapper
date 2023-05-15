@@ -50,6 +50,7 @@ namespace egl_wrapper {
     #ifdef WAYLAND_PLATFORM
         std::unordered_map<void*, WaylandDisplay*> waylandDisplayList;
     #endif
+    void* nativeGLES2Library = NULL;
     void* nativeEGLLibrary = NULL;
     libAndroidHelper::LibAndroid libandroid;
     const __EGLapiExports* glvnd = NULL;
@@ -110,8 +111,180 @@ namespace egl_wrapper {
     PFNEGLDESTROYIMAGEKHRPROC dispatch::eglDestroyImageKHR = eglDestroyImage;
     
     
+    void (*real_glActiveTexture)(GLenum texture) = NULL;
+    void (*real_glAttachShader)(GLuint program, GLuint shader) = NULL;
+    void (*real_glBindAttribLocation)(GLuint program, GLuint index, const GLchar* name) = NULL;
+    void (*real_glBindBuffer)(GLenum target, GLuint buffer) = NULL;
+    void (*real_glBindFramebuffer)(GLenum target, GLuint framebuffer) = NULL;
+    void (*real_glBindRenderbuffer)(GLenum target, GLuint renderbuffer) = NULL;
+    void (*real_glBindTexture)(GLenum target, GLuint texture) = NULL;
+    void (*real_glBlendColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) = NULL;
+    void (*real_glBlendEquation)(GLenum mode) = NULL;
+    void (*real_glBlendEquationSeparate)(GLenum modeRGB, GLenum modeAlpha) = NULL;
+    void (*real_glBlendFunc)(GLenum sfactor, GLenum dfactor) = NULL;
+    void (*real_glBlendFuncSeparate)(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha) = NULL;
+    void (*real_glBufferData)(GLenum target, GLsizeiptr size, const void* data, GLenum usage) = NULL;
+    void (*real_glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void* data) = NULL;
+    GLenum (*real_glCheckFramebufferStatus)(GLenum target) = NULL;
+    void (*real_glClear)(GLbitfield mask) = NULL;
+    void (*real_glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) = NULL;
+    void (*real_glClearDepthf)(GLfloat d) = NULL;
+    void (*real_glClearStencil)(GLint s) = NULL;
+    void (*real_glColorMask)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha) = NULL;
+    void (*real_glCompileShader)(GLuint shader) = NULL;
+    void (*real_glCompressedTexImage2D)(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void* data) = NULL;
+    void (*real_glCompressedTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void* data) = NULL;
+    void (*real_glCopyTexImage2D)(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border) = NULL;
+    void (*real_glCopyTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height) = NULL;
+    GLuint (*real_glCreateProgram)(void) = NULL;
+    GLuint (*real_glCreateShader)(GLenum type) = NULL;
+    void (*real_glCullFace)(GLenum mode) = NULL;
+    void (*real_glDeleteBuffers)(GLsizei n, const GLuint* buffers) = NULL;
+    void (*real_glDeleteFramebuffers)(GLsizei n, const GLuint* framebuffers) = NULL;
+    void (*real_glDeleteProgram)(GLuint program) = NULL;
+    void (*real_glDeleteRenderbuffers)(GLsizei n, const GLuint* renderbuffers) = NULL;
+    void (*real_glDeleteShader)(GLuint shader) = NULL;
+    void (*real_glDeleteTextures)(GLsizei n, const GLuint* textures) = NULL;
+    void (*real_glDepthFunc)(GLenum func) = NULL;
+    void (*real_glDepthMask)(GLboolean flag) = NULL;
+    void (*real_glDepthRangef)(GLfloat n, GLfloat f) = NULL;
+    void (*real_glDetachShader)(GLuint program, GLuint shader) = NULL;
+    void (*real_glDisable)(GLenum cap) = NULL;
+    void (*real_glDisableVertexAttribArray)(GLuint index) = NULL;
+    void (*real_glDrawArrays)(GLenum mode, GLint first, GLsizei count) = NULL;
+    void (*real_glDrawElements)(GLenum mode, GLsizei count, GLenum type, const void* indices) = NULL;
+    void (*real_glEnable)(GLenum cap) = NULL;
+    void (*real_glEnableVertexAttribArray)(GLuint index) = NULL;
+    void (*real_glFinish)(void) = NULL;
+    void (*real_glFlush)(void) = NULL;
+    void (*real_glFramebufferRenderbuffer)(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer) = NULL;
+    void (*real_glFramebufferTexture2D)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level) = NULL;
+    void (*real_glFrontFace)(GLenum mode) = NULL;
+    void (*real_glGenBuffers)(GLsizei n, GLuint* buffers) = NULL;
+    void (*real_glGenerateMipmap)(GLenum target) = NULL;
+    void (*real_glGenFramebuffers)(GLsizei n, GLuint* framebuffers) = NULL;
+    void (*real_glGenRenderbuffers)(GLsizei n, GLuint* renderbuffers) = NULL;
+    void (*real_glGenTextures)(GLsizei n, GLuint* textures) = NULL;
+    void (*real_glGetActiveAttrib)(GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) = NULL;
+    void (*real_glGetActiveUniform)(GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) = NULL;
+    void (*real_glGetAttachedShaders)(GLuint program, GLsizei maxCount, GLsizei* count, GLuint* shaders) = NULL;
+    GLint (*real_glGetAttribLocation)(GLuint program, const GLchar* name) = NULL;
+    void (*real_glGetBooleanv)(GLenum pname, GLboolean* data) = NULL;
+    void (*real_glGetBufferParameteriv)(GLenum target, GLenum pname, GLint* params) = NULL;
+    GLenum (*real_glGetError)(void) = NULL;
+    void (*real_glGetFloatv)(GLenum pname, GLfloat* data) = NULL;
+    void (*real_glGetFramebufferAttachmentParameteriv)(GLenum target, GLenum attachment, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetIntegerv)(GLenum pname, GLint* data) = NULL;
+    void (*real_glGetProgramiv)(GLuint program, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetProgramInfoLog)(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog) = NULL;
+    void (*real_glGetRenderbufferParameteriv)(GLenum target, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetShaderiv)(GLuint shader, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetShaderInfoLog)(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) = NULL;
+    void (*real_glGetShaderPrecisionFormat)(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) = NULL;
+    void (*real_glGetShaderSource)(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* source) = NULL;
+    const GLubyte* (*real_glGetString)(GLenum name) = NULL;
+    void (*real_glGetTexParameterfv)(GLenum target, GLenum pname, GLfloat* params) = NULL;
+    void (*real_glGetTexParameteriv)(GLenum target, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetUniformfv)(GLuint program, GLint location, GLfloat* params) = NULL;
+    void (*real_glGetUniformiv)(GLuint program, GLint location, GLint* params) = NULL;
+    GLint (*real_glGetUniformLocation)(GLuint program, const GLchar* name) = NULL;
+    void (*real_glGetVertexAttribfv)(GLuint index, GLenum pname, GLfloat* params) = NULL;
+    void (*real_glGetVertexAttribiv)(GLuint index, GLenum pname, GLint* params) = NULL;
+    void (*real_glGetVertexAttribPointerv)(GLuint index, GLenum pname, void** pointer) = NULL;
+    void (*real_glHint)(GLenum target, GLenum mode) = NULL;
+    GLboolean (*real_glIsBuffer)(GLuint buffer) = NULL;
+    GLboolean (*real_glIsEnabled)(GLenum cap) = NULL;
+    GLboolean (*real_glIsFramebuffer)(GLuint framebuffer) = NULL;
+    GLboolean (*real_glIsProgram)(GLuint program) = NULL;
+    GLboolean (*real_glIsRenderbuffer)(GLuint renderbuffer) = NULL;
+    GLboolean (*real_glIsShader)(GLuint shader) = NULL;
+    GLboolean (*real_glIsTexture)(GLuint texture) = NULL;
+    void (*real_glLineWidth)(GLfloat width) = NULL;
+    void (*real_glLinkProgram)(GLuint program) = NULL;
+    void (*real_glPixelStorei)(GLenum pname, GLint param) = NULL;
+    void (*real_glPolygonOffset)(GLfloat factor, GLfloat units) = NULL;
+    void (*real_glReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels) = NULL;
+    void (*real_glReleaseShaderCompiler)(void) = NULL;
+    void (*real_glRenderbufferStorage)(GLenum target, GLenum internalformat, GLsizei width, GLsizei height) = NULL;
+    void (*real_glSampleCoverage)(GLfloat value, GLboolean invert) = NULL;
+    void (*real_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height) = NULL;
+    void (*real_glShaderBinary)(GLsizei count, const GLuint* shaders, GLenum binaryformat, const void* binary, GLsizei length) = NULL;
+    void (*real_glShaderSource)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length) = NULL;
+    void (*real_glStencilFunc)(GLenum func, GLint ref, GLuint mask) = NULL;
+    void (*real_glStencilFuncSeparate)(GLenum face, GLenum func, GLint ref, GLuint mask) = NULL;
+    void (*real_glStencilMask)(GLuint mask) = NULL;
+    void (*real_glStencilMaskSeparate)(GLenum face, GLuint mask) = NULL;
+    void (*real_glStencilOp)(GLenum fail, GLenum zfail, GLenum zpass) = NULL;
+    void (*real_glStencilOpSeparate)(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass) = NULL;
+    void (*real_glTexImage2D)(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* pixels) = NULL;
+    void (*real_glTexParameterf)(GLenum target, GLenum pname, GLfloat param) = NULL;
+    void (*real_glTexParameterfv)(GLenum target, GLenum pname, const GLfloat* params) = NULL;
+    void (*real_glTexParameteri)(GLenum target, GLenum pname, GLint param) = NULL;
+    void (*real_glTexParameteriv)(GLenum target, GLenum pname, const GLint* params) = NULL;
+    void (*real_glTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels) = NULL;
+    void (*real_glUniform1f)(GLint location, GLfloat v0) = NULL;
+    void (*real_glUniform1fv)(GLint location, GLsizei count, const GLfloat* value) = NULL;
+    void (*real_glUniform1i)(GLint location, GLint v0) = NULL;
+    void (*real_glUniform1iv)(GLint location, GLsizei count, const GLint* value) = NULL;
+    void (*real_glUniform2f)(GLint location, GLfloat v0, GLfloat v1) = NULL;
+    void (*real_glUniform2fv)(GLint location, GLsizei count, const GLfloat* value) = NULL;
+    void (*real_glUniform2i)(GLint location, GLint v0, GLint v1) = NULL;
+    void (*real_glUniform2iv)(GLint location, GLsizei count, const GLint* value) = NULL;
+    void (*real_glUniform3f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2) = NULL;
+    void (*real_glUniform3fv)(GLint location, GLsizei count, const GLfloat* value) = NULL;
+    void (*real_glUniform3i)(GLint location, GLint v0, GLint v1, GLint v2) = NULL;
+    void (*real_glUniform3iv)(GLint location, GLsizei count, const GLint* value) = NULL;
+    void (*real_glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3) = NULL;
+    void (*real_glUniform4fv)(GLint location, GLsizei count, const GLfloat* value) = NULL;
+    void (*real_glUniform4i)(GLint location, GLint v0, GLint v1, GLint v2, GLint v3) = NULL;
+    void (*real_glUniform4iv)(GLint location, GLsizei count, const GLint* value) = NULL;
+    void (*real_glUniformMatrix2fv)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) = NULL;
+    void (*real_glUniformMatrix3fv)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) = NULL;
+    void (*real_glUniformMatrix4fv)(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) = NULL;
+    void (*real_glUseProgram)(GLuint program) = NULL;
+    void (*real_glValidateProgram)(GLuint program) = NULL;
+    void (*real_glVertexAttrib1f)(GLuint index, GLfloat x) = NULL;
+    void (*real_glVertexAttrib1fv)(GLuint index, const GLfloat* v) = NULL;
+    void (*real_glVertexAttrib2f)(GLuint index, GLfloat x, GLfloat y) = NULL;
+    void (*real_glVertexAttrib2fv)(GLuint index, const GLfloat* v) = NULL;
+    void (*real_glVertexAttrib3f)(GLuint index, GLfloat x, GLfloat y, GLfloat z) = NULL;
+    void (*real_glVertexAttrib3fv)(GLuint index, const GLfloat* v) = NULL;
+    void (*real_glVertexAttrib4f)(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w) = NULL;
+    void (*real_glVertexAttrib4fv)(GLuint index, const GLfloat* v) = NULL;
+    void (*real_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer) = NULL;
+    void (*real_glViewport)(GLint x, GLint y, GLsizei width, GLsizei height) = NULL;
+    
+    
     
     thread_local EGLint lastError = EGL_SUCCESS;
+    
+    /**
+     * @brief Looks up an GLES function and errors if not found.
+     * 
+     */
+    #define GLFUNC(fname) real_ ## fname = (decltype(real_ ## fname)) dlsym(nativeGLES2Library, #fname); \
+    if (real_ ## fname == NULL) { \
+        fprintf(stderr, "ERROR: Could not find GLES function '" #fname "'"); \
+        fflush(stderr); \
+        return EGL_FALSE; \
+    }
+    
+    /**
+     * @brief Looks up an EGL function and errors if not found.
+     * 
+     */
+    #define EGLFUNC(fname) real_ ## fname = (decltype(real_ ## fname)) dlsym(nativeEGLLibrary, #fname); \
+    if (real_ ## fname == NULL) { \
+        fprintf(stderr, "ERROR: Could not find EGL function '" #fname "'"); \
+        fflush(stderr); \
+        return EGL_FALSE; \
+    }
+    
+    /**
+     * @brief Looks up an EGL function and sets to NULL if not found.
+     * 
+     */
+    #define EGLFUNC_OPT(fname) real_ ## fname = (decltype(real_ ## fname)) dlsym(nativeEGLLibrary, #fname);
     
     
     /**
@@ -122,64 +295,217 @@ namespace egl_wrapper {
     EGLBoolean egl_wrapper_init()  {
         // search for the native libEGL.so
         nativeEGLLibrary = dlopen("/system/lib64/libEGL.so", RTLD_LAZY | RTLD_LOCAL);
+        nativeGLES2Library = dlopen("/system/lib64/libGLESv2.so", RTLD_LAZY | RTLD_LOCAL);
         if (nativeEGLLibrary == NULL) {
             nativeEGLLibrary = dlopen("/system/lib/libEGL.so", RTLD_LAZY | RTLD_LOCAL);
+            if (nativeGLES2Library != NULL) dlclose(nativeGLES2Library);
+            nativeGLES2Library = dlopen("/system/lib/libGLESv2.so", RTLD_LAZY | RTLD_LOCAL);
         }
-        if (nativeEGLLibrary == NULL) {
-            fprintf(stderr, "ERROR: Could not find Android libEGL.so in /system/lib64 or /system/lib\n");
+        if (nativeEGLLibrary == NULL || nativeGLES2Library == NULL) {
+            fprintf(stderr, "ERROR: Could not find Android libEGL.so or libGLESv2.so in /system/lib64 or /system/lib\n");
             fflush(stderr);
             return EGL_FALSE;
         }
         
+        // TODO load GLESv2 and all functions
+        
+        
         // get all EGL functions
-        real_eglChooseConfig = (PFNEGLCHOOSECONFIGPROC) dlsym(nativeEGLLibrary, "eglChooseConfig");
-        real_eglCopyBuffers = (PFNEGLCOPYBUFFERSPROC) dlsym(nativeEGLLibrary, "eglCopyBuffers");
-        real_eglCreateContext = (PFNEGLCREATECONTEXTPROC) dlsym(nativeEGLLibrary, "eglCreateContext");
-        real_eglCreatePbufferSurface = (PFNEGLCREATEPBUFFERSURFACEPROC) dlsym(nativeEGLLibrary, "eglCreatePbufferSurface");
-        real_eglCreatePixmapSurface = (PFNEGLCREATEPIXMAPSURFACEPROC) dlsym(nativeEGLLibrary, "eglCreatePixmapSurface");
-        real_eglCreateWindowSurface = (PFNEGLCREATEWINDOWSURFACEPROC) dlsym(nativeEGLLibrary, "eglCreateWindowSurface");
-        real_eglDestroyContext = (PFNEGLDESTROYCONTEXTPROC) dlsym(nativeEGLLibrary, "eglDestroyContext");
-        real_eglDestroySurface = (PFNEGLDESTROYSURFACEPROC) dlsym(nativeEGLLibrary, "eglDestroySurface");
-        real_eglGetConfigAttrib = (PFNEGLGETCONFIGATTRIBPROC) dlsym(nativeEGLLibrary, "eglGetConfigAttrib");
-        real_eglGetConfigs = (PFNEGLGETCONFIGSPROC) dlsym(nativeEGLLibrary, "eglGetConfigs");
-        real_eglGetCurrentDisplay = (PFNEGLGETCURRENTDISPLAYPROC) dlsym(nativeEGLLibrary, "eglGetCurrentDisplay");
-        real_eglGetCurrentSurface = (PFNEGLGETCURRENTSURFACEPROC) dlsym(nativeEGLLibrary, "eglGetCurrentSurface");
-        real_eglGetDisplay = (PFNEGLGETDISPLAYPROC) dlsym(nativeEGLLibrary, "eglGetDisplay");
-        real_eglGetError = (PFNEGLGETERRORPROC) dlsym(nativeEGLLibrary, "eglGetError");
-        real_eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) dlsym(nativeEGLLibrary, "eglGetProcAddress");
-        real_eglInitialize = (PFNEGLINITIALIZEPROC) dlsym(nativeEGLLibrary, "eglInitialize");
-        real_eglMakeCurrent = (PFNEGLMAKECURRENTPROC) dlsym(nativeEGLLibrary, "eglMakeCurrent");
-        real_eglQueryContext = (PFNEGLQUERYCONTEXTPROC) dlsym(nativeEGLLibrary, "eglQueryContext");
-        real_eglQueryString = (PFNEGLQUERYSTRINGPROC) dlsym(nativeEGLLibrary, "eglQueryString");
-        real_eglQuerySurface = (PFNEGLQUERYSURFACEPROC) dlsym(nativeEGLLibrary, "eglQuerySurface");
-        real_eglSwapBuffers = (PFNEGLSWAPBUFFERSPROC) dlsym(nativeEGLLibrary, "eglSwapBuffers");
-        real_eglTerminate = (PFNEGLTERMINATEPROC) dlsym(nativeEGLLibrary, "eglTerminate");
-        real_eglWaitGL = (PFNEGLWAITGLPROC) dlsym(nativeEGLLibrary, "eglWaitGL");
-        real_eglWaitNative = (PFNEGLWAITNATIVEPROC) dlsym(nativeEGLLibrary, "eglWaitNative");
+        EGLFUNC(eglChooseConfig)
+        EGLFUNC(eglCopyBuffers)
+        EGLFUNC(eglCreateContext)
+        EGLFUNC(eglCreatePbufferSurface)
+        EGLFUNC(eglCreatePixmapSurface)
+        EGLFUNC(eglCreateWindowSurface)
+        EGLFUNC(eglDestroyContext)
+        EGLFUNC(eglDestroySurface)
+        EGLFUNC(eglGetConfigAttrib)
+        EGLFUNC(eglGetConfigs)
+        EGLFUNC(eglGetCurrentDisplay)
+        EGLFUNC(eglGetCurrentSurface)
+        EGLFUNC(eglGetDisplay)
+        EGLFUNC(eglGetError)
+        EGLFUNC(eglGetProcAddress)
+        EGLFUNC(eglInitialize)
+        EGLFUNC(eglMakeCurrent)
+        EGLFUNC(eglQueryContext)
+        EGLFUNC(eglQueryString)
+        EGLFUNC(eglQuerySurface)
+        EGLFUNC(eglSwapBuffers)
+        EGLFUNC(eglTerminate)
+        EGLFUNC(eglWaitGL)
+        EGLFUNC(eglWaitNative)
         
-        real_eglBindTexImage = (PFNEGLBINDTEXIMAGEPROC) dlsym(nativeEGLLibrary, "eglBindTexImage");
-        real_eglReleaseTexImage = (PFNEGLRELEASETEXIMAGEPROC) dlsym(nativeEGLLibrary, "eglReleaseTexImage");
-        real_eglSurfaceAttrib = (PFNEGLSURFACEATTRIBPROC) dlsym(nativeEGLLibrary, "eglSurfaceAttrib");
-        real_eglSwapInterval = (PFNEGLSWAPINTERVALPROC) dlsym(nativeEGLLibrary, "eglSwapInterval");
+        EGLFUNC(eglBindTexImage)
+        EGLFUNC(eglReleaseTexImage)
+        EGLFUNC(eglSurfaceAttrib)
+        EGLFUNC(eglSwapInterval)
         
-        real_eglBindAPI = (PFNEGLBINDAPIPROC) dlsym(nativeEGLLibrary, "eglBindAPI");
-        real_eglQueryAPI = (PFNEGLQUERYAPIPROC) dlsym(nativeEGLLibrary, "eglQueryAPI");
-        real_eglCreatePbufferFromClientBuffer = (PFNEGLCREATEPBUFFERFROMCLIENTBUFFERPROC) dlsym(nativeEGLLibrary, "eglCreatePbufferFromClientBuffer");
-        real_eglReleaseThread = (PFNEGLRELEASETHREADPROC) dlsym(nativeEGLLibrary, "eglReleaseThread");
-        real_eglWaitClient = (PFNEGLWAITCLIENTPROC) dlsym(nativeEGLLibrary, "eglWaitClient");
+        EGLFUNC(eglBindAPI)
+        EGLFUNC(eglQueryAPI)
+        EGLFUNC(eglCreatePbufferFromClientBuffer)
+        EGLFUNC(eglReleaseThread)
+        EGLFUNC(eglWaitClient)
         
-        real_eglGetCurrentContext = (PFNEGLGETCURRENTCONTEXTPROC) dlsym(nativeEGLLibrary, "eglGetCurrentContext");
+        EGLFUNC(eglGetCurrentContext)
         
-        real_eglCreateSync = (PFNEGLCREATESYNCPROC) dlsym(nativeEGLLibrary, "eglCreateSync");
-        real_eglDestroySync = (PFNEGLDESTROYSYNCPROC) dlsym(nativeEGLLibrary, "eglDestroySync");
-        real_eglClientWaitSync = (PFNEGLCLIENTWAITSYNCPROC) dlsym(nativeEGLLibrary, "eglClientWaitSync");
-        real_eglGetSyncAttrib = (PFNEGLGETSYNCATTRIBPROC) dlsym(nativeEGLLibrary, "eglGetSyncAttrib");
-        real_eglCreateImage = (PFNEGLCREATEIMAGEPROC) dlsym(nativeEGLLibrary, "eglCreateImage");
-        real_eglDestroyImage = (PFNEGLDESTROYIMAGEPROC) dlsym(nativeEGLLibrary, "eglDestroyImage");
-        real_eglGetPlatformDisplay = (PFNEGLGETPLATFORMDISPLAYPROC) dlsym(nativeEGLLibrary, "eglGetPlatformDisplay");
-        real_eglCreatePlatformWindowSurface = (PFNEGLCREATEPLATFORMWINDOWSURFACEPROC) dlsym(nativeEGLLibrary, "eglCreatePlatformWindowSurface");
-        real_eglCreatePlatformPixmapSurface = (PFNEGLCREATEPLATFORMPIXMAPSURFACEPROC) dlsym(nativeEGLLibrary, "eglCreatePlatformPixmapSurface");
-        real_eglWaitSync = (PFNEGLWAITSYNCPROC) dlsym(nativeEGLLibrary, "eglWaitSync");
+        EGLFUNC_OPT(eglCreateSync)
+        EGLFUNC_OPT(eglDestroySync)
+        EGLFUNC_OPT(eglClientWaitSync)
+        EGLFUNC_OPT(eglGetSyncAttrib)
+        EGLFUNC_OPT(eglCreateImage)
+        EGLFUNC_OPT(eglDestroyImage)
+        EGLFUNC_OPT(eglGetPlatformDisplay)
+        EGLFUNC_OPT(eglCreatePlatformWindowSurface)
+        EGLFUNC_OPT(eglCreatePlatformPixmapSurface)
+        EGLFUNC_OPT(eglWaitSync)
+        
+        
+        GLFUNC(glActiveTexture)
+        GLFUNC(glAttachShader)
+        GLFUNC(glBindAttribLocation)
+        GLFUNC(glBindBuffer)
+        GLFUNC(glBindFramebuffer)
+        GLFUNC(glBindRenderbuffer)
+        GLFUNC(glBindTexture)
+        GLFUNC(glBlendColor)
+        GLFUNC(glBlendEquation)
+        GLFUNC(glBlendEquationSeparate)
+        GLFUNC(glBlendFunc)
+        GLFUNC(glBlendFuncSeparate)
+        GLFUNC(glBufferData)
+        GLFUNC(glBufferSubData)
+        GLFUNC(glCheckFramebufferStatus)
+        GLFUNC(glClear)
+        GLFUNC(glClearColor)
+        GLFUNC(glClearDepthf)
+        GLFUNC(glClearStencil)
+        GLFUNC(glColorMask)
+        GLFUNC(glCompileShader)
+        GLFUNC(glCompressedTexImage2D)
+        GLFUNC(glCompressedTexSubImage2D)
+        GLFUNC(glCopyTexImage2D)
+        GLFUNC(glCopyTexSubImage2D)
+        GLFUNC(glCreateProgram)
+        GLFUNC(glCreateShader)
+        GLFUNC(glCullFace)
+        GLFUNC(glDeleteBuffers)
+        GLFUNC(glDeleteFramebuffers)
+        GLFUNC(glDeleteProgram)
+        GLFUNC(glDeleteRenderbuffers)
+        GLFUNC(glDeleteShader)
+        GLFUNC(glDeleteTextures)
+        GLFUNC(glDepthFunc)
+        GLFUNC(glDepthMask)
+        GLFUNC(glDepthRangef)
+        GLFUNC(glDetachShader)
+        GLFUNC(glDisable)
+        GLFUNC(glDisableVertexAttribArray)
+        GLFUNC(glDrawArrays)
+        GLFUNC(glDrawElements)
+        GLFUNC(glEnable)
+        GLFUNC(glEnableVertexAttribArray)
+        GLFUNC(glFinish)
+        GLFUNC(glFlush)
+        GLFUNC(glFramebufferRenderbuffer)
+        GLFUNC(glFramebufferTexture2D)
+        GLFUNC(glFrontFace)
+        GLFUNC(glGenBuffers)
+        GLFUNC(glGenerateMipmap)
+        GLFUNC(glGenFramebuffers)
+        GLFUNC(glGenRenderbuffers)
+        GLFUNC(glGenTextures)
+        GLFUNC(glGetActiveAttrib)
+        GLFUNC(glGetActiveUniform)
+        GLFUNC(glGetAttachedShaders)
+        GLFUNC(glGetAttribLocation)
+        GLFUNC(glGetBooleanv)
+        GLFUNC(glGetBufferParameteriv)
+        GLFUNC(glGetError)
+        GLFUNC(glGetFloatv)
+        GLFUNC(glGetFramebufferAttachmentParameteriv)
+        GLFUNC(glGetIntegerv)
+        GLFUNC(glGetProgramiv)
+        GLFUNC(glGetProgramInfoLog)
+        GLFUNC(glGetRenderbufferParameteriv)
+        GLFUNC(glGetShaderiv)
+        GLFUNC(glGetShaderInfoLog)
+        GLFUNC(glGetShaderPrecisionFormat)
+        GLFUNC(glGetShaderSource)
+        GLFUNC(glGetString)
+        GLFUNC(glGetTexParameterfv)
+        GLFUNC(glGetTexParameteriv)
+        GLFUNC(glGetUniformfv)
+        GLFUNC(glGetUniformiv)
+        GLFUNC(glGetUniformLocation)
+        GLFUNC(glGetVertexAttribfv)
+        GLFUNC(glGetVertexAttribiv)
+        GLFUNC(glGetVertexAttribPointerv)
+        GLFUNC(glHint)
+        GLFUNC(glIsBuffer)
+        GLFUNC(glIsEnabled)
+        GLFUNC(glIsFramebuffer)
+        GLFUNC(glIsProgram)
+        GLFUNC(glIsRenderbuffer)
+        GLFUNC(glIsShader)
+        GLFUNC(glIsTexture)
+        GLFUNC(glLineWidth)
+        GLFUNC(glLinkProgram)
+        GLFUNC(glPixelStorei)
+        GLFUNC(glPolygonOffset)
+        GLFUNC(glReadPixels)
+        GLFUNC(glReleaseShaderCompiler)
+        GLFUNC(glRenderbufferStorage)
+        GLFUNC(glSampleCoverage)
+        GLFUNC(glScissor)
+        GLFUNC(glShaderBinary)
+        GLFUNC(glShaderSource)
+        GLFUNC(glStencilFunc)
+        GLFUNC(glStencilFuncSeparate)
+        GLFUNC(glStencilMask)
+        GLFUNC(glStencilMaskSeparate)
+        GLFUNC(glStencilOp)
+        GLFUNC(glStencilOpSeparate)
+        GLFUNC(glTexImage2D)
+        GLFUNC(glTexParameterf)
+        GLFUNC(glTexParameterfv)
+        GLFUNC(glTexParameteri)
+        GLFUNC(glTexParameteriv)
+        GLFUNC(glTexSubImage2D)
+        GLFUNC(glUniform1f)
+        GLFUNC(glUniform1fv)
+        GLFUNC(glUniform1i)
+        GLFUNC(glUniform1iv)
+        GLFUNC(glUniform2f)
+        GLFUNC(glUniform2fv)
+        GLFUNC(glUniform2i)
+        GLFUNC(glUniform2iv)
+        GLFUNC(glUniform3f)
+        GLFUNC(glUniform3fv)
+        GLFUNC(glUniform3i)
+        GLFUNC(glUniform3iv)
+        GLFUNC(glUniform4f)
+        GLFUNC(glUniform4fv)
+        GLFUNC(glUniform4i)
+        GLFUNC(glUniform4iv)
+        GLFUNC(glUniformMatrix2fv)
+        GLFUNC(glUniformMatrix3fv)
+        GLFUNC(glUniformMatrix4fv)
+        GLFUNC(glUseProgram)
+        GLFUNC(glValidateProgram)
+        GLFUNC(glVertexAttrib1f)
+        GLFUNC(glVertexAttrib1fv)
+        GLFUNC(glVertexAttrib2f)
+        GLFUNC(glVertexAttrib2fv)
+        GLFUNC(glVertexAttrib3f)
+        GLFUNC(glVertexAttrib3fv)
+        GLFUNC(glVertexAttrib4f)
+        GLFUNC(glVertexAttrib4fv)
+        GLFUNC(glVertexAttribPointer)
+        GLFUNC(glViewport)
+        
+        
+        
         
         
         // check needed EGL functions
@@ -492,8 +818,8 @@ namespace egl_wrapper {
     
     void* getProcAddress(const char* procName) {
         if (procName == NULL) return NULL;
-        fprintf(stdout, "getProcAddress: %s\n", procName);
-        fflush(stdout);
+        //fprintf(stdout, "getProcAddress: %s\n", procName);
+        //fflush(stdout);
         GENERATE_DISPATCH_IF(eglChooseConfig)
         GENERATE_DISPATCH_IF(eglCopyBuffers)
         GENERATE_DISPATCH_IF(eglCreateContext)
