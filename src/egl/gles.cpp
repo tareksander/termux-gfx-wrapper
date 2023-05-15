@@ -1,8 +1,13 @@
 #include "egl.hpp"
 
+
+#define IF_ANDROID if (glvnd->getCurrentDisplay() != NULL && reinterpret_cast<EGLDisplayBackend*>(glvnd->getCurrentDisplay())->type == DisplayType::NATIVE) 
+
 namespace egl_wrapper::dispatch {
     void glActiveTexture(GLenum texture) {
-        
+        IF_ANDROID {
+            real_glActiveTexture(texture);
+        }
     }
     
     

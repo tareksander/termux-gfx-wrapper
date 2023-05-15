@@ -2,7 +2,7 @@
 
 namespace egl_wrapper {
     
-    X11Display::X11Display(Display* x11Display, const EGLAttrib *attrib_list) {
+    X11Display::X11Display(Display* x11Display, const EGLAttrib *attrib_list) : EGLDisplayBackend(DisplayType::X11) {
         if (x11Display == EGL_DEFAULT_DISPLAY) {
             int screen = -1;
             if (attrib_list != NULL) {
@@ -28,7 +28,7 @@ namespace egl_wrapper {
         }
     }
     
-    X11Display::X11Display(xcb_connection_t* xcbC, const EGLAttrib *attrib_list) {
+    X11Display::X11Display(xcb_connection_t* xcbC, const EGLAttrib *attrib_list) : EGLDisplayBackend(DisplayType::X11) {
         if (xcbC == (void*)EGL_DEFAULT_DISPLAY) {
             int screen = -1;
             if (attrib_list != NULL) {
