@@ -168,7 +168,7 @@ namespace egl_wrapper {
         /// @brief Whether EGL 1.5 is available
         bool egl15 = true;
         
-        AndroidDisplay(DisplayType type) : EGLDisplayBackend(type) {}
+        AndroidDisplay() : EGLDisplayBackend(DisplayType::NATIVE) {}
         
         
         // EGL 1.0

@@ -113,6 +113,7 @@ namespace egl_wrapper {
     
     EGLBoolean AndroidDisplay::eglTerminate() {
         // TODO bookkeeping and freeing of EGL resources
+        return EGL_TRUE;
     }
     
     
