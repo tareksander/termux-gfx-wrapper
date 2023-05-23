@@ -457,6 +457,7 @@ namespace egl_wrapper {
                 int pFD = -1;
                 int pWidth = 0;
                 int pHeight = 0;
+                int seg = -1;
                 
                 bool notifyNeeded = false;
                 

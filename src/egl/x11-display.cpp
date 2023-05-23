@@ -2,27 +2,86 @@
 
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/fcntl.h>
 
 #ifdef __ANDROID__
 #include <linux/ashmem.h>
 #include <sys/ioctl.h>
+
+static inline int memfd_create(const char *name, unsigned int flags) {
+#ifndef __NR_memfd_create
+    #if defined __i386__
+#define __NR_memfd_create 356
+#elif defined __x86_64__
+#define __NR_memfd_create 319
+#elif defined __arm__
+#define __NR_memfd_create 385
+#elif defined __aarch64__
+#define __NR_memfd_create 279
 #endif
+#endif
+#ifdef __NR_memfd_create
+    return syscall(__NR_memfd_create, name, flags);
+#else
+    errno = ENOSYS;
+	return -1;
+#endif
+}
+#endif
+
+static inline int
+os_create_anonymous_file(size_t size) {
+    int fd, ret = -1;
+    long flags;
+
+
+    fd = memfd_create("xorg", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if (fd != -1) {
+        fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK);
+        if (ftruncate(fd, size) < 0) {
+            close(fd);
+        } else {
+            dprintf(2, "Using memfd\n");
+            return fd;
+        }
+    }
+
+#ifdef __ANDROID__
+    fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
+    if (fd < 0)
+        return fd;
+    ret = ioctl(fd, /** ASHMEM_SET_SIZE */ _IOW(0x77, 3, size_t), size);
+    if (ret < 0)
+        goto err;
+    flags = fcntl(fd, F_GETFD);
+    if (flags == -1)
+        goto err;
+    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
+        goto err;
+
+    dprintf(2, "Using ashmem\n");
+    return fd;
+    err:
+    close(fd);
+#endif
+    return ret;
+}
+
+static __thread xcb_generic_error_t* err = nullptr;
 
 namespace egl_wrapper {
     void X11Display::checkExtensions() const {
         // check for the shm extension
         {
-            xcb_generic_error_t* err = nullptr;
             xcb_shm_query_version_reply_t* shmv = xcb_shm_query_version_reply(xcbC, xcb_shm_query_version(xcbC), &err);
             if (err != nullptr) {
-                //fprintf(stderr, "shm error\n");
-                //fflush(stderr);
+                //dprintf(2, "shm error\n");
                 free(shmv);
+                free(err);
                 throw Exceptions::NoDisplayException();
             }
             if (shmv->major_version != 1 || shmv->minor_version < 2 || shmv->shared_pixmaps == false) {
-                //fprintf(stderr, "shm version\n");
-                //fflush(stderr);
+                //dprintf(2, "shm version\n");
                 free(shmv);
                 throw Exceptions::NoDisplayException();
             }
@@ -30,17 +89,15 @@ namespace egl_wrapper {
         }
         // check for present extension
         {
-            xcb_generic_error_t* err = nullptr;
             xcb_present_query_version_reply_t* presv = xcb_present_query_version_reply(xcbC, xcb_present_query_version(xcbC, XCB_PRESENT_MAJOR_VERSION, XCB_PRESENT_MINOR_VERSION), &err);
             if (err != nullptr) {
-                //fprintf(stderr, "present error\n");
-                //fflush(stderr);
+                //dprintf(2, "present error\n");
                 free(presv);
+                free(err);
                 throw Exceptions::NoDisplayException();
             }
             if (presv->major_version != 1 || presv->minor_version < 2) {
-                //fprintf(stderr, "present version\n");
-                //fflush(stderr);
+                //dprintf(2, "present version\n");
                 free(presv);
                 throw Exceptions::NoDisplayException();
             }
@@ -49,11 +106,9 @@ namespace egl_wrapper {
     }
     
     X11Display::X11Display(Display* x11Display, const EGLAttrib *attrib_list) : EGLDisplayBackend(DisplayType::X11) {
-        //fprintf(stderr, "xlib\n");
-        //fflush(stderr);
+        //dprintf(2, "xlib\n");
         if (x11Display == EGL_DEFAULT_DISPLAY) {
-            //fprintf(stderr, "default\n");
-            //fflush(stderr);
+            //dprintf(2, "default\n");
             screenIndex = -1;
             if (attrib_list != nullptr) {
                 if (*attrib_list != EGL_PLATFORM_X11_SCREEN_EXT && *attrib_list != EGL_NONE) throw Exceptions::BadAttributeException();
@@ -77,14 +132,12 @@ namespace egl_wrapper {
             this->ownsConnection = false;
             this->xcbC = XGetXCBConnection(x11Display);
         }
-        //fprintf(stderr, "check\n");
-        //fflush(stderr);
+        //dprintf(2, "check\n");
         checkExtensions();
     }
     
     X11Display::X11Display(xcb_connection_t* xcbC, const EGLAttrib *attrib_list) : EGLDisplayBackend(DisplayType::X11) {
-        //fprintf(stderr, "xcb\n");
-        //fflush(stderr);
+        //dprintf(2, "xcb\n");
         if (xcbC == (void*)EGL_DEFAULT_DISPLAY) {
             screenIndex = -1;
             if (attrib_list != nullptr) {
@@ -190,7 +243,9 @@ namespace egl_wrapper {
         s->backend = std::move(backend);
         s->eid = xcb_generate_id(xcbC);
         s->ev = xcb_register_for_special_xge(xcbC, &xcb_present_id, s->eid, nullptr);
-        if (xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)) != nullptr) {
+        if ((err = xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)))) {
+            dprintf(2, "Failed to xcb_present_select_input_checked()\n");
+            free(err);
             return EGL_NO_SURFACE;
         }
         Surface* sraw = s.release();
@@ -259,14 +314,12 @@ namespace egl_wrapper {
     
     
     EGLBoolean X11Display::eglInitialize(EGLint* major, EGLint* minor) {
-        //fprintf(stderr, "x11 init display\n");
-        //fflush(stderr);
+        //dprintf(2, "x11 init display\n");
         
         const xcb_setup_t* setup = xcb_get_setup(xcbC);
         xcb_screen_iterator_t sit = xcb_setup_roots_iterator(setup);
         if (screenIndex > sit.rem) {
-            //fprintf(stderr, "screen index invalid: %d, %d\n", screenIndex, sit.rem);
-            //fflush(stderr);
+            //dprintf(2, "screen index invalid: %d, %d\n", screenIndex, sit.rem);
             xcb_screen_end(sit);
             lastError = EGL_NOT_INITIALIZED;
             return EGL_FALSE;
@@ -283,8 +336,7 @@ namespace egl_wrapper {
             //if (dit.data->depth != 32) continue;
             const xcb_visualtype_t* visuals = xcb_depth_visuals(dit.data);
             for (int i = 0; i < len; i++) {
-                //fprintf(stderr, "class: %d  bpp: %d\n", visuals[i]._class, visuals[i].bits_per_rgb_value);
-                //fflush(stderr);
+                //dprintf(2, "class: %d  bpp: %d\n", visuals[i]._class, visuals[i].bits_per_rgb_value);
                 if (visuals[i]._class == XCB_VISUAL_CLASS_DIRECT_COLOR && visuals[i].bits_per_rgb_value == 8) {
                     vis = visuals[i];
                     visualFound = true;
@@ -303,8 +355,7 @@ namespace egl_wrapper {
             *major = 1;
         if (minor != nullptr)
             *minor = 4;
-        //fprintf(stderr, "x11 init success\n");
-        //fflush(stderr);
+        //dprintf(2, "x11 init success\n");
         return EGL_TRUE;
     }
     
@@ -331,8 +382,7 @@ namespace egl_wrapper {
     }
 
     EGLBoolean X11Display::eglSwapBuffers(EGLSurface surface) {
-        //fprintf(stderr, "swapBuffers\n");
-        //fflush(stderr);
+        //dprintf(2, "swapBuffers\n");
         if (surface == EGL_NO_SURFACE) {
             lastError = EGL_BAD_SURFACE;
             return EGL_FALSE;
@@ -342,8 +392,7 @@ namespace egl_wrapper {
             return EGL_TRUE;
         }
         if (s->type == Surface::Type::WINDOW) {
-            //fprintf(stderr, "window\n");
-            //fflush(stderr);
+            //dprintf(2, "window\n");
             auto w = static_cast<WindowSurface*>(s);
             xcb_generic_event_t* e;
             while ((e = xcb_poll_for_special_event(xcbC, w->ev)) != nullptr) {
@@ -386,73 +435,47 @@ namespace egl_wrapper {
                 }
                 w->pWidth = w->wWidth;
                 w->pHeight = w->wHeight;
-#if 1
-                {
-                    w->pFD = memfd_create("pixmap", MFD_CLOEXEC);
-                    if (w->pFD == -1) {
-                        return EGL_FALSE;
-                    }
-                    if (ftruncate(w->pFD, w->pWidth * w->pHeight * 4) != 0) {
-                        close(w->pFD);
-                        w->pFD = -1;
-                        return EGL_FALSE;
-                    }
+                w->pFD = os_create_anonymous_file(w->pWidth * w->pHeight * 4);
+                if (w->pFD == -1) {
+                    dprintf(2, "Failed to create anonymous file\n");
+                    return EGL_FALSE;
                 }
-#endif
-#ifdef __ANDROID__
-                if (w->pFD == -1){
-                    // use ashmem for now
-                    w->pFD = open("/dev/ashmem", O_RDWR);
-                    if (w->pFD == -1) {
-                        fprintf(stderr, "could not open /dev/ashmem\n");
-                        fflush(stderr);
-                        return EGL_FALSE;
-                    }
-                    if (ioctl(w->pFD, ASHMEM_SET_SIZE, size_t(w->pWidth * w->pHeight * 4)) == -1) {
-                        fprintf(stderr, "could not resize ashmem\n");
-                        fflush(stderr);
-                        close(w->pFD);
-                        return EGL_FALSE;
-                    }
-                }
-#endif
                 w->pData = mmap(nullptr, w->pWidth * w->pHeight * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD, 0);
                 if (w->pData == MAP_FAILED) {
-                    fprintf(stderr, "could not mmap ashmem\n");
-                    fflush(stderr);
+                    dprintf(2, "could not mmap ashmem\n");
                     close(w->pFD);
                     w->pFD = -1;
                     w->pData = nullptr;
                     return EGL_FALSE;
                 }
-                xcb_shm_seg_t seg = xcb_generate_id(xcbC);
-                if (xcb_request_check(xcbC, xcb_shm_attach_fd(xcbC, seg, w->pFD, true)) != nullptr) {
-                    fprintf(stderr, "could create shm\n");
-                    fflush(stderr);
+                xcb_shm_seg_t seg = w-> seg = xcb_generate_id(xcbC);
+                if ((err = xcb_request_check(xcbC, xcb_shm_attach_fd_checked(xcbC, seg, w->pFD, false)))) {
+                    dprintf(2, "could create shm\n");
                     close(w->pFD);
                     w->pFD = -1;
                     w->pData = nullptr;
+                    free(err);
                     return EGL_FALSE;
                 }
                 w->p = xcb_generate_id(xcbC);
-                if (xcb_request_check(xcbC, xcb_shm_create_pixmap(xcbC, w->p, w->w, w->pWidth, w->pHeight, 32, seg, 0)) != nullptr) {
-                    fprintf(stderr, "could not create pixmap\n");
-                    fflush(stderr);
+                if ((err = xcb_request_check(xcbC, xcb_shm_create_pixmap_checked(xcbC, w->p, w->w, w->pWidth, w->pHeight, 24, seg, 0)))) {
+                    dprintf(2, "could not create pixmap\n");
                     close(w->pFD);
                     w->pFD = -1;
                     munmap(w->pData, w->pWidth * w->pHeight * 4);
                     w->pData = nullptr;
                     w->p = -1;
                     xcb_shm_detach(xcbC, seg);
+                    free(err);
                     return EGL_FALSE;
                 }
-                xcb_shm_detach(xcbC, seg);
+//                xcb_shm_detach(xcbC, seg);
                 
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
                 
-                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)) != nullptr) {
-                    fprintf(stderr, "could not present\n");
-                    fflush(stderr);
+                if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
+                    dprintf(2, "could not present\n");
+                    free(err);
                     return EGL_FALSE;
                 }
                 w->notifyNeeded = true;
@@ -467,25 +490,31 @@ namespace egl_wrapper {
                         EGL_NONE};
                     backend->pbuffer = real_eglCreatePbufferSurface(nativeDisplay, w->conf, pbattribs);
                     if (backend->pbuffer == EGL_NO_SURFACE) {
-                        fprintf(stderr, "could not resize buffer\n");
-                        fflush(stderr);
+                        dprintf(2, "could not resize buffer\n");
                         return EGL_FALSE;
                     }
                     w->backend = std::move(backend);
                     // next frame will go to the new size buffer
                     real_eglMakeCurrent(nativeDisplay, Surface::getSurface(w), Surface::getSurface(w), Context::getContext((Context*) glvnd->getCurrentContext()));
                 }
-                fprintf(stderr, "draw resize\n");
-                fflush(stderr);
+                dprintf(2, "draw resize\n");
             } else {
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
-                
-                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)) != nullptr) {
+
+//                /* Create black (foreground) graphic context */
+//                xcb_gcontext_t const gc = xcb_generate_id( xcbC );
+//                uint32_t const gc_mask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
+//                uint32_t const gc_values[] = {screen->black_pixel, 0};
+//                xcb_create_gc(xcbC, gc, w->w, gc_mask, gc_values);
+//                free(xcb_request_check(xcbC, xcb_shm_put_image(xcbC, w->w, gc, w->wWidth, w->wHeight, 0, 0, w->pWidth, w->pHeight, 0, 0, 24, XCB_IMAGE_FORMAT_Z_PIXMAP, 0, w->seg, 0)));
+
+                if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
+                    dprintf(2, "Failed to xcb_present_pixmap_checked()\n");
+                    free(err);
                     return EGL_FALSE;
                 }
                 w->notifyNeeded = true;
-                fprintf(stderr, "draw\n");
-                fflush(stderr);
+//                dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
             }
             return EGL_TRUE;
         }

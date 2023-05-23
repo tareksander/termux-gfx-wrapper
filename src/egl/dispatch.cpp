@@ -1,7 +1,7 @@
 #include "egl.hpp"
 
 
-// Short for for casting the EGLDisplay and calling a function.
+// Short for casting the EGLDisplay and calling a function.
 #define CALLD(name) std::unique_lock<std::mutex> l{reinterpret_cast<EGLDisplayBackend*>(d)->lock}; return reinterpret_cast<EGLDisplayBackend*>(d)->name
 
 
@@ -127,7 +127,7 @@ namespace egl_wrapper::dispatch {
     }
     
     
-    EGLint eglGetError(void) {
+    EGLint eglGetError() {
         EGLint e = lastError;
         lastError = EGL_SUCCESS;
         return e;
@@ -177,7 +177,7 @@ namespace egl_wrapper::dispatch {
         try {
             CALLD(eglQueryString)(name);
         } CATCH_EGL_EXCEPTIONS
-        return NULL;
+        return nullptr;
     }
     
     
@@ -217,7 +217,7 @@ namespace egl_wrapper::dispatch {
     }
     
     
-    EGLBoolean eglWaitGL(void) {
+    EGLBoolean eglWaitGL() {
         return real_eglWaitGL();
     }
     
@@ -285,17 +285,22 @@ namespace egl_wrapper::dispatch {
     }
     
     EGLSurface eglCreatePbufferFromClientBuffer(EGLDisplay d, EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list) {
+        (void) d;
+        (void) buftype;
+        (void) buffer;
+        (void) config;
+        (void) attrib_list;
         return EGL_NO_SURFACE;
     }
     
     
-    EGLBoolean eglReleaseThread(void) {
+    EGLBoolean eglReleaseThread() {
         // TODO relay to all displays that are initialized, if needed
         return EGL_TRUE;
     }
     
     
-    EGLBoolean eglWaitClient(void) {
+    EGLBoolean eglWaitClient() {
         return real_eglWaitClient();
     }
     
@@ -418,8 +423,8 @@ namespace egl_wrapper::dispatch {
         if (vnd == thisVendor) {
             // TODO dispatch to display
         } else {
-            PFNEGLCREATEIMAGEKHRPROC f = (PFNEGLCREATEIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglCreateImageKHRIndex);
-            if (f == NULL) {
+            auto f = (PFNEGLCREATEIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglCreateImageKHRIndex);
+            if (f == nullptr) {
                 glvnd->setEGLError(EGL_BAD_DISPLAY);
                 return EGL_NO_IMAGE_KHR;
             }
@@ -439,6 +444,7 @@ namespace egl_wrapper::dispatch {
         auto vnd = glvnd->getVendorFromDisplay(dpy);
         if (vnd == thisVendor) {
             // TODO dispatch to display
+            return EGL_FALSE;
         } else {
             auto f = (PFNEGLDESTROYIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglDestroyImageKHRIndex);
             if (f == nullptr) {
