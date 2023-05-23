@@ -14,3 +14,5 @@ _deps
 /check-zink-requirements.sh
 /termux-gfx-wrapper.tar.gz
 /.vscode
+/.idea
+/cmake-build-debug

@@ -425,6 +425,8 @@ namespace egl_wrapper::dispatch {
             }
             return f(dpy, ctx, target, buffer, attrib_list);
         }
+
+        return nullptr;
     }
     
     EGLBoolean eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image) {
@@ -433,15 +435,17 @@ namespace egl_wrapper::dispatch {
             glvnd->setEGLError(EGL_BAD_DISPLAY);
             return EGL_FALSE;
         }
+
         auto vnd = glvnd->getVendorFromDisplay(dpy);
         if (vnd == thisVendor) {
             // TODO dispatch to display
         } else {
-            PFNEGLDESTROYIMAGEKHRPROC f = (PFNEGLDESTROYIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglDestroyImageKHRIndex);
-            if (f == NULL) {
+            auto f = (PFNEGLDESTROYIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglDestroyImageKHRIndex);
+            if (f == nullptr) {
                 glvnd->setEGLError(EGL_BAD_DISPLAY);
                 return EGL_FALSE;
             }
+
             return f(dpy, image);
         }
     }

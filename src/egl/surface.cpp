@@ -2,17 +2,14 @@
 #include "egl.hpp"
 
 namespace egl_wrapper {
-    
-    
-    SurfaceBackend::~SurfaceBackend() {}
+    SurfaceBackend::~SurfaceBackend() = default;
     
     SmartEGLSurface::~SmartEGLSurface() {
-        if (s != EGL_NO_SURFACE) {
+        if (s != EGL_NO_SURFACE)
             real_eglDestroySurface(nativeDisplay, s);
-        }
     }
     
-    SmartEGLSurface& SmartEGLSurface::operator=(SmartEGLSurface&& o) {
+    SmartEGLSurface& SmartEGLSurface::operator=(SmartEGLSurface&& o)  noexcept {
         if (this != &o) {
             if (s != EGL_NO_SURFACE) {
                 real_eglDestroySurface(nativeDisplay, s);
@@ -22,7 +19,4 @@ namespace egl_wrapper {
         }
         return *this;
     }
-    
-    
-    
 }

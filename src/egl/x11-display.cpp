@@ -2,19 +2,19 @@
 
 #include <unistd.h>
 #include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
+
+#ifdef __ANDROID__
 #include <linux/ashmem.h>
+#include <sys/ioctl.h>
+#endif
 
 namespace egl_wrapper {
-    
-    
-    void X11Display::checkExtensions() {
+    void X11Display::checkExtensions() const {
         // check for the shm extension
         {
-            xcb_generic_error_t* err = NULL;
+            xcb_generic_error_t* err = nullptr;
             xcb_shm_query_version_reply_t* shmv = xcb_shm_query_version_reply(xcbC, xcb_shm_query_version(xcbC), &err);
-            if (err != NULL) {
+            if (err != nullptr) {
                 //fprintf(stderr, "shm error\n");
                 //fflush(stderr);
                 free(shmv);
@@ -30,9 +30,9 @@ namespace egl_wrapper {
         }
         // check for present extension
         {
-            xcb_generic_error_t* err = NULL;
+            xcb_generic_error_t* err = nullptr;
             xcb_present_query_version_reply_t* presv = xcb_present_query_version_reply(xcbC, xcb_present_query_version(xcbC, XCB_PRESENT_MAJOR_VERSION, XCB_PRESENT_MINOR_VERSION), &err);
-            if (err != NULL) {
+            if (err != nullptr) {
                 //fprintf(stderr, "present error\n");
                 //fflush(stderr);
                 free(presv);
@@ -55,10 +55,10 @@ namespace egl_wrapper {
             //fprintf(stderr, "default\n");
             //fflush(stderr);
             screenIndex = -1;
-            if (attrib_list != NULL) {
+            if (attrib_list != nullptr) {
                 if (*attrib_list != EGL_PLATFORM_X11_SCREEN_EXT && *attrib_list != EGL_NONE) throw Exceptions::BadAttributeException();
                 attrib_list++;
-                screenIndex = *attrib_list;
+                screenIndex = int(*attrib_list);
                 attrib_list++;
                 if (*attrib_list != EGL_NONE) throw Exceptions::BadAttributeException();
             }
@@ -66,7 +66,7 @@ namespace egl_wrapper {
             if (screenIndex == -1) {
                 screenIndex = 0;
             }
-            this->xcbC = xcb_connect(NULL, screenp);
+            this->xcbC = xcb_connect(nullptr, screenp);
             if (xcb_connection_has_error(this->xcbC) != 0) {
                 xcb_disconnect(this->xcbC);
                 throw Exceptions::NoDisplayException();
@@ -87,10 +87,10 @@ namespace egl_wrapper {
         //fflush(stderr);
         if (xcbC == (void*)EGL_DEFAULT_DISPLAY) {
             screenIndex = -1;
-            if (attrib_list != NULL) {
+            if (attrib_list != nullptr) {
                 if (*attrib_list != EGL_PLATFORM_XCB_SCREEN_EXT && *attrib_list != EGL_NONE) throw Exceptions::BadAttributeException();
                 attrib_list++;
-                screenIndex = *attrib_list;
+                screenIndex = int(*attrib_list);
                 attrib_list++;
                 if (*attrib_list != EGL_NONE) throw Exceptions::BadAttributeException();
             }
@@ -98,7 +98,7 @@ namespace egl_wrapper {
             if (screenIndex == -1) {
                 screenIndex = 0;
             }
-            this->xcbC = xcb_connect(NULL, screenp);
+            this->xcbC = xcb_connect(nullptr, screenp);
             if (xcb_connection_has_error(this->xcbC) != 0) {
                 xcb_disconnect(this->xcbC);
                 throw Exceptions::NoDisplayException();
@@ -111,40 +111,35 @@ namespace egl_wrapper {
         }
         checkExtensions();
     }
-    
-    
+
     X11Display::~X11Display() {
         eglTerminate();
         if (ownsConnection) {
             xcb_disconnect(xcbC);
             ownsConnection = false;
         }
-        xcbC = NULL;
+        xcbC = nullptr;
     }
-    
-    
-    
+
     EGLBoolean X11Display::eglChooseConfig(const EGLint* attrib_list, EGLConfig* configs, EGLint config_size, EGLint* num_config) {
         auto retVal = real_eglChooseConfig(nativeDisplay, attrib_list, configs, config_size, num_config);
         lastError = real_eglGetError();
         return retVal;
     }
-    
-    
+
     EGLBoolean X11Display::eglCopyBuffers(EGLSurface surface, EGLNativePixmapType target) {
         return EGL_FALSE;
     }
     
-    
     EGLContext X11Display::eglCreateContext(EGLConfig config, EGLContext share_context, const EGLint* attrib_list) {
         const EGLint* attrib = attrib_list;
-        if (attrib != NULL) {
+        if (attrib != nullptr) {
             while (*attrib != EGL_NONE) {
                 if (*attrib == EGL_CONTEXT_MAJOR_VERSION && *(attrib + 1) == 2) {
                     EGLContext ctx = real_eglCreateContext(nativeDisplay, config, share_context, attrib_list);
                     lastError = real_eglGetError();
                     if (ctx != EGL_NO_CONTEXT) {
-                        Context* c = new Context(EGL_OPENGL_ES_API, ctx);
+                        auto c = new Context(EGL_OPENGL_ES_API, ctx);
                         contexts.insert(c); // could leak memory for OOM
                         return c;
                     }
@@ -156,8 +151,7 @@ namespace egl_wrapper {
         lastError = EGL_BAD_ATTRIBUTE;
         return EGL_NO_CONTEXT;
     }
-    
-    
+
     EGLSurface X11Display::eglCreatePbufferSurface(EGLConfig config, const EGLint* attrib_list) {
         EGLSurface ret = real_eglCreatePbufferSurface(nativeDisplay, config, attrib_list);
         lastError = real_eglGetError();
@@ -173,13 +167,11 @@ namespace egl_wrapper {
         }
         return EGL_NO_SURFACE;
     }
-    
-    
+
     EGLSurface X11Display::eglCreatePixmapSurface(EGLConfig config, EGLNativePixmapType pixmap, const EGLint* attrib_list) {
         return EGL_NO_SURFACE;
     }
-    
-    
+
     EGLSurface X11Display::eglCreateWindowSurface(EGLConfig config, EGLNativeWindowType win, const EGLint* attrib_list) {
         std::unique_ptr<WindowSurface> s = std::make_unique<WindowSurface>();
         s->type = Surface::Type::WINDOW;
@@ -197,8 +189,8 @@ namespace egl_wrapper {
         if (backend->pbuffer == EGL_NO_SURFACE) return EGL_NO_SURFACE;
         s->backend = std::move(backend);
         s->eid = xcb_generate_id(xcbC);
-        s->ev = xcb_register_for_special_xge(xcbC, &xcb_present_id, s->eid, NULL);
-        if (xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)) != 0) {
+        s->ev = xcb_register_for_special_xge(xcbC, &xcb_present_id, s->eid, nullptr);
+        if (xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)) != nullptr) {
             return EGL_NO_SURFACE;
         }
         Surface* sraw = s.release();
@@ -206,59 +198,55 @@ namespace egl_wrapper {
         return sraw;
     }
     
-    
     EGLBoolean X11Display::eglDestroyContext(EGLContext ctx) {
         if (ctx == EGL_NO_CONTEXT) {
             lastError = EGL_BAD_CONTEXT;
             return EGL_FALSE;
         }
-        Context* c = reinterpret_cast<Context*>(ctx);
-        delete c;
+        auto c = reinterpret_cast<Context*>(ctx);
         contexts.erase(c);
+        delete c;
         return EGL_TRUE;
     }
-    
-    
+
     X11Display::WindowSurface::~WindowSurface() {
         if (p != -1) {
             xcb_free_pixmap(xcbC, p);
         }
-        if (ev != NULL) {
+        if (ev != nullptr) {
             xcb_unregister_for_special_event(xcbC, ev);
         }
         if (pFD != -1) {
             close(pFD);
         }
-        if (pData != NULL) {
+        if (pData != nullptr) {
             munmap(pData, pWidth * pHeight * 4);
         }
     }
-    
-    
+
     EGLBoolean X11Display::eglDestroySurface(EGLSurface surface) {
         if (surface == EGL_NO_SURFACE) {
             lastError = EGL_BAD_SURFACE;
             return EGL_FALSE;
         }
-        Surface* s = reinterpret_cast<Surface*>(surface);
+        auto s = reinterpret_cast<Surface*>(surface);
         if (s->type == Surface::Type::PBUFFER) {
-            delete s;
             surfaces.erase(s);
+            delete s;
             return EGL_TRUE;
         }
         if (s->type == Surface::Type::WINDOW) {
-            delete static_cast<WindowSurface*>(s);
             surfaces.erase(s);
+            delete static_cast<WindowSurface*>(s);
             return EGL_TRUE;
         }
         lastError = EGL_BAD_SURFACE;
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglGetConfigAttrib(EGLConfig config, EGLint attribute, EGLint* value) {
         if (attribute == EGL_NATIVE_VISUAL_ID) {
-            *value = vis.visual_id;
+            *value = EGLint(vis.visual_id);
             return EGL_TRUE;
         }
         return real_eglGetConfigAttrib(nativeDisplay, config, attribute, value);
@@ -311,9 +299,9 @@ namespace egl_wrapper {
             return EGL_FALSE;
         }
         
-        if (major != NULL)
+        if (major != nullptr)
             *major = 1;
-        if (minor != NULL)
+        if (minor != nullptr)
             *minor = 4;
         //fprintf(stderr, "x11 init success\n");
         //fflush(stderr);
@@ -329,22 +317,19 @@ namespace egl_wrapper {
     EGLBoolean X11Display::eglQueryContext(EGLContext ctx, EGLint attribute, EGLint* value) {
         return EGL_FALSE;
     }
-    
-    
+
     const char* X11Display::eglQueryString(EGLint name) {
         if (name == EGL_CLIENT_APIS) return "OpenGL_ES";
         if (name == EGL_EXTENSIONS) return "EGL_KHR_platform_x11 EGL_EXT_platform_x11 EGL_EXT_platform_xcb";
         if (name == EGL_VENDOR) return "Termux EGL wrapper X11";
         if (name == EGL_VERSION) return "1.4 Termux EGL wrapper X11";
-        return NULL;
+        return nullptr;
     }
-    
-    
+
     EGLBoolean X11Display::eglQuerySurface(EGLSurface surface, EGLint attribute, EGLint* value) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglSwapBuffers(EGLSurface surface) {
         //fprintf(stderr, "swapBuffers\n");
         //fflush(stderr);
@@ -352,105 +337,111 @@ namespace egl_wrapper {
             lastError = EGL_BAD_SURFACE;
             return EGL_FALSE;
         }
-        Surface* s = reinterpret_cast<Surface*>(surface);
+        auto s = reinterpret_cast<Surface*>(surface);
         if (s->type == Surface::Type::PBUFFER) {
             return EGL_TRUE;
         }
         if (s->type == Surface::Type::WINDOW) {
             //fprintf(stderr, "window\n");
             //fflush(stderr);
-            WindowSurface* w = static_cast<WindowSurface*>(s);
+            auto w = static_cast<WindowSurface*>(s);
             xcb_generic_event_t* e;
-            while ((e = xcb_poll_for_special_event(xcbC, w->ev)) != NULL) {
-                xcb_present_generic_event_t* pe = reinterpret_cast<xcb_present_generic_event_t*>(e);
+            while ((e = xcb_poll_for_special_event(xcbC, w->ev)) != nullptr) {
+                auto pe = reinterpret_cast<xcb_present_generic_event_t*>(e);
                 if (pe->evtype == XCB_PRESENT_CONFIGURE_NOTIFY) {
-                    xcb_present_configure_notify_event_t* ce = reinterpret_cast<xcb_present_configure_notify_event_t*>(pe);
+                    auto ce = reinterpret_cast<xcb_present_configure_notify_event_t*>(pe);
                     if (ce->window == w->w) {
                         w->wWidth = ce->width;
                         w->wHeight = ce->height;
                     }
                 }
                 if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
-                    xcb_present_complete_notify_event_t* ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
+//                    auto ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
                     w->notifyNeeded = false;
                 }
             }
             while (w->notifyNeeded) {
-                xcb_present_generic_event_t* pe = reinterpret_cast<xcb_present_generic_event_t*>(xcb_wait_for_special_event(xcbC, w->ev));
+                auto pe = reinterpret_cast<xcb_present_generic_event_t*>(xcb_wait_for_special_event(xcbC, w->ev));
                 if (pe->evtype == XCB_PRESENT_CONFIGURE_NOTIFY) {
-                    xcb_present_configure_notify_event_t* ce = reinterpret_cast<xcb_present_configure_notify_event_t*>(pe);
+                    auto ce = reinterpret_cast<xcb_present_configure_notify_event_t*>(pe);
                     if (ce->window == w->w) {
                         w->wWidth = ce->width;
                         w->wHeight = ce->height;
                     }
                 }
                 if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
-                    xcb_present_complete_notify_event_t* ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
+//                    auto ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
                     w->notifyNeeded = false;
                 }
             }
-            if (w->wWidth != w->pWidth || w->wHeight != w->pHeight || w->pData == NULL) {
+            if (w->wWidth != w->pWidth || w->wHeight != w->pHeight || w->pData == nullptr) {
                 if (w->p != -1) {
                     xcb_free_pixmap(xcbC, w->p);
                 }
                 if (w->pFD != -1) {
                     close(w->pFD);
                 }
-                if (w->pData != NULL) {
+                if (w->pData != nullptr) {
                     munmap(w->pData, w->pWidth * w->pHeight * 4);
                 }
                 w->pWidth = w->wWidth;
                 w->pHeight = w->wHeight;
-                /*
-                w->pFD = memfd_create("pixmap", MFD_CLOEXEC);
-                if (w->pFD == -1) {
-                    return EGL_FALSE;
+#if 1
+                {
+                    w->pFD = memfd_create("pixmap", MFD_CLOEXEC);
+                    if (w->pFD == -1) {
+                        return EGL_FALSE;
+                    }
+                    if (ftruncate(w->pFD, w->pWidth * w->pHeight * 4) != 0) {
+                        close(w->pFD);
+                        w->pFD = -1;
+                        return EGL_FALSE;
+                    }
                 }
-                if (ftruncate(w->pFD, w->pWidth * w->pHeight * 4) != 0) {
-                    close(w->pFD);
-                    w->pFD = -1;
-                    return EGL_FALSE;
+#endif
+#ifdef __ANDROID__
+                if (w->pFD == -1){
+                    // use ashmem for now
+                    w->pFD = open("/dev/ashmem", O_RDWR);
+                    if (w->pFD == -1) {
+                        fprintf(stderr, "could not open /dev/ashmem\n");
+                        fflush(stderr);
+                        return EGL_FALSE;
+                    }
+                    if (ioctl(w->pFD, ASHMEM_SET_SIZE, size_t(w->pWidth * w->pHeight * 4)) == -1) {
+                        fprintf(stderr, "could not resize ashmem\n");
+                        fflush(stderr);
+                        close(w->pFD);
+                        return EGL_FALSE;
+                    }
                 }
-                 */
-                // use ashmem for now
-                w->pFD = open("/dev/ashmem", O_RDWR);
-                if (w->pFD == -1) {
-                    fprintf(stderr, "could not open /dev/ashmem\n");
-                    fflush(stderr);
-                    return EGL_FALSE;
-                }
-                if (ioctl(w->pFD, ASHMEM_SET_SIZE, size_t(w->pWidth * w->pHeight * 4)) == -1) {
-                    fprintf(stderr, "could not resize ashmem\n");
-                    fflush(stderr);
-                    close(w->pFD);
-                    return EGL_FALSE;
-                }
-                w->pData = mmap(NULL, w->pWidth * w->pHeight * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD, 0);
+#endif
+                w->pData = mmap(nullptr, w->pWidth * w->pHeight * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD, 0);
                 if (w->pData == MAP_FAILED) {
                     fprintf(stderr, "could not mmap ashmem\n");
                     fflush(stderr);
                     close(w->pFD);
                     w->pFD = -1;
-                    w->pData = NULL;
+                    w->pData = nullptr;
                     return EGL_FALSE;
                 }
                 xcb_shm_seg_t seg = xcb_generate_id(xcbC);
-                if (xcb_request_check(xcbC, xcb_shm_attach_fd(xcbC, seg, w->pFD, true)) != NULL) {
+                if (xcb_request_check(xcbC, xcb_shm_attach_fd(xcbC, seg, w->pFD, true)) != nullptr) {
                     fprintf(stderr, "could create shm\n");
                     fflush(stderr);
                     close(w->pFD);
                     w->pFD = -1;
-                    w->pData = NULL;
+                    w->pData = nullptr;
                     return EGL_FALSE;
                 }
                 w->p = xcb_generate_id(xcbC);
-                if (xcb_request_check(xcbC, xcb_shm_create_pixmap(xcbC, w->p, w->w, w->pWidth, w->pHeight, 32, seg, 0)) != NULL) {
+                if (xcb_request_check(xcbC, xcb_shm_create_pixmap(xcbC, w->p, w->w, w->pWidth, w->pHeight, 32, seg, 0)) != nullptr) {
                     fprintf(stderr, "could not create pixmap\n");
                     fflush(stderr);
                     close(w->pFD);
                     w->pFD = -1;
                     munmap(w->pData, w->pWidth * w->pHeight * 4);
-                    w->pData = NULL;
+                    w->pData = nullptr;
                     w->p = -1;
                     xcb_shm_detach(xcbC, seg);
                     return EGL_FALSE;
@@ -459,7 +450,7 @@ namespace egl_wrapper {
                 
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
                 
-                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, NULL)) != NULL) {
+                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)) != nullptr) {
                     fprintf(stderr, "could not present\n");
                     fflush(stderr);
                     return EGL_FALSE;
@@ -489,7 +480,7 @@ namespace egl_wrapper {
             } else {
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
                 
-                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, NULL)) != NULL) {
+                if (xcb_request_check(xcbC, xcb_present_pixmap(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)) != nullptr) {
                     return EGL_FALSE;
                 }
                 w->notifyNeeded = true;
@@ -500,8 +491,7 @@ namespace egl_wrapper {
         }
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglTerminate() {
         for (Context* c : contexts) {
             delete c;
@@ -513,90 +503,69 @@ namespace egl_wrapper {
         surfaces.clear();
         return EGL_TRUE;
     }
-    
-    
+
     EGLBoolean X11Display::eglBindTexImage(EGLSurface surface, EGLint buffer) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglReleaseTexImage(EGLSurface surface, EGLint buffer) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglSurfaceAttrib(EGLSurface surface, EGLint attribute, EGLint value) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLBoolean X11Display::eglSwapInterval(EGLint interval) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLSurface X11Display::eglCreatePbufferFromClientBuffer(EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list) {
         return EGL_FALSE;
     }
-    
-    
-    EGLBoolean X11Display::eglReleaseThread(void) {
+
+    EGLBoolean X11Display::eglReleaseThread() {
         return real_eglReleaseThread();
     }
-    
-    
-    
-    
-    EGLContext X11Display::eglGetCurrentContext(void) {
+
+    EGLContext X11Display::eglGetCurrentContext() {
         return glvnd->getCurrentContext();
     }
-    
     
     EGLSync X11Display::eglCreateSync(EGLenum type, const EGLAttrib* attrib_list) {
         return EGL_NO_SYNC;
     }
     
-    
     EGLBoolean X11Display::eglDestroySync(EGLSync sync) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLint X11Display::eglClientWaitSync(EGLSync sync, EGLint flags, EGLTime timeout) {
         return EGL_FALSE;
     }
     
-    
     EGLBoolean X11Display::eglGetSyncAttrib(EGLSync sync, EGLint attribute, EGLAttrib* value) {
         return EGL_FALSE;
     }
-    
-    
+
     EGLImage X11Display::eglCreateImage(EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib* attrib_list) {
         return EGL_NO_IMAGE;
     }
-    
-    
+
     EGLBoolean X11Display::eglDestroyImage(EGLImage image) {
         return EGL_FALSE;
     }
     
-    
     EGLSurface X11Display::eglCreatePlatformWindowSurface(EGLConfig config, void* native_window, const EGLAttrib* attrib_list) {
         return EGL_NO_SURFACE;
     }
-    
-    
+
     EGLSurface X11Display::eglCreatePlatformPixmapSurface(EGLConfig config, void* native_pixmap, const EGLAttrib* attrib_list) {
         return EGL_NO_SURFACE;
     }
-    
-    
+
     EGLBoolean X11Display::eglWaitSync(EGLSync sync, EGLint flags) {
         return EGL_FALSE;
     }
-    
-    
-    
 }
 
