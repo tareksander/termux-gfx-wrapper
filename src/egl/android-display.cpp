@@ -21,9 +21,19 @@ namespace egl_wrapper {
     
     
     EGLContext AndroidDisplay::eglCreateContext(EGLConfig config, EGLContext share_context, const EGLint* attrib_list) {
-        auto retVal = real_eglCreateContext(nativeDisplay, config, share_context, attrib_list);
-        lastError = real_eglGetError();
-        return retVal;
+        const EGLint* attrib = attrib_list;
+        if (attrib != NULL) {
+            while (*attrib != EGL_NONE) {
+                if (*attrib == EGL_CONTEXT_MAJOR_VERSION && *(attrib + 1) == 2) {
+                    auto retVal = real_eglCreateContext(nativeDisplay, config, share_context, attrib_list);
+                    lastError = real_eglGetError();
+                    return retVal;
+                }
+                attrib++;
+            }
+        }
+        lastError = EGL_BAD_ATTRIBUTE;
+        return EGL_NO_CONTEXT;
     }
     
     
@@ -82,6 +92,11 @@ namespace egl_wrapper {
         return retVal;
     }
     
+    EGLBoolean AndroidDisplay::eglMakeCurrent(EGLSurface draw, EGLSurface read, EGLContext ctx) {
+        auto retVal = real_eglMakeCurrent(nativeDisplay, draw, read, ctx);
+        lastError = real_eglGetError();
+        return retVal;
+    }
     
     EGLBoolean AndroidDisplay::eglQueryContext(EGLContext ctx, EGLint attribute, EGLint* value) {
         auto retVal = real_eglQueryContext(nativeDisplay, ctx, attribute, value);
@@ -91,6 +106,28 @@ namespace egl_wrapper {
     
     
     const char* AndroidDisplay::eglQueryString(EGLint name) {
+        if (name == EGL_EXTENSIONS) {
+            std::string realExtensions = real_eglQueryString(nativeDisplay, EGL_EXTENSIONS);
+            // use lambdas, so we can construct the extension string without needing an additional lock,
+            // the declaration is guaranteed to only run once.
+            static std::string exts = std::string("EGL_KHR_platform_android") + [&realExtensions]() {
+                if (realExtensions.find("EGL_KHR_image_base") != std::string::npos) {
+                    return std::string("EGL_KHR_image_base");
+                }
+                return std::string();
+            }() + [&realExtensions]() {
+                if (realExtensions.find("EGL_ANDROID_image_native_buffer") != std::string::npos) {
+                    return std::string("EGL_ANDROID_image_native_buffer");
+                }
+                return std::string();
+            }() + [&realExtensions]() {
+                if (realExtensions.find("EGL_ANDROID_get_native_client_buffer") != std::string::npos) {
+                    return std::string("EGL_ANDROID_get_native_client_buffer");
+                }
+                return std::string();
+            }();
+            return exts.c_str();
+        }
         auto retVal = real_eglQueryString(nativeDisplay, name);
         lastError = real_eglGetError();
         return retVal;
@@ -114,20 +151,6 @@ namespace egl_wrapper {
     EGLBoolean AndroidDisplay::eglTerminate() {
         // TODO bookkeeping and freeing of EGL resources
         return EGL_TRUE;
-    }
-    
-    
-    EGLBoolean AndroidDisplay::eglWaitGL(void) {
-        auto retVal = real_eglWaitGL();
-        lastError = real_eglGetError();
-        return retVal;
-    }
-    
-    
-    EGLBoolean AndroidDisplay::eglWaitNative(EGLint engine) {
-        auto retVal = real_eglWaitNative(engine);
-        lastError = real_eglGetError();
-        return retVal;
     }
     
     
@@ -172,12 +195,6 @@ namespace egl_wrapper {
         return retVal;
     }
     
-    
-    EGLBoolean AndroidDisplay::eglWaitClient(void) {
-        auto retVal = real_eglWaitClient();
-        lastError = real_eglGetError();
-        return retVal;
-    }
     
     
     EGLContext AndroidDisplay::eglGetCurrentContext(void) {

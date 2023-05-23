@@ -4,6 +4,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+// my EGL.h doesn't have these definitions, so I copied them from a newer one
 #define EGL_PLATFORM_XCB_EXT              0x31DC
 #define EGL_PLATFORM_XCB_SCREEN_EXT       0x31DE
 
@@ -23,14 +24,19 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <exception>
+#include <memory>
 
 
 
 #ifdef X11_PLATFORM
     #include <xcb/xcb.h>
+    #include <xcb/xcbext.h>
     #include <xcb/xproto.h>
     #include <xcb/shm.h>
+    #include <xcb/present.h>
+    #include <xcb/sync.h>
     #include <X11/Xlib-xcb.h>
 #endif
 
@@ -45,7 +51,7 @@
 #endif
 
 
-
+#include "surface.hpp"
 
 namespace egl_wrapper {
     /**
@@ -74,7 +80,58 @@ namespace egl_wrapper {
     enum class DisplayType {
         NATIVE,
         WAYLAND,
-        X11
+        X11,
+    };
+    
+    struct SmartEGLContext final {
+        EGLContext c;
+        
+        operator EGLContext() {
+            return c;
+        }
+        
+        SmartEGLContext() : c{EGL_NO_CONTEXT} {}
+        SmartEGLContext(EGLContext c) : c{c} {}
+        ~SmartEGLContext();
+        SmartEGLContext(const SmartEGLContext& o) = delete;
+        SmartEGLContext& operator=(const SmartEGLContext& o) = delete;
+        SmartEGLContext& operator=(SmartEGLContext&& o);
+        SmartEGLContext(SmartEGLContext&& o) {
+            *this = std::move(o);
+        }
+    };
+    
+    struct SmartEGLImage final {
+        EGLImage i;
+        
+        operator EGLImage() {
+            return i;
+        }
+        
+        SmartEGLImage() : i{EGL_NO_IMAGE} {}
+        SmartEGLImage(EGLImage i) : i{i} {}
+        ~SmartEGLImage();
+        SmartEGLImage(const SmartEGLImage& o) = delete;
+        SmartEGLImage& operator=(const SmartEGLImage& o) = delete;
+        SmartEGLImage& operator=(SmartEGLImage&& o);
+        SmartEGLImage(SmartEGLImage&& o) {
+            *this = std::move(o);
+        }
+    };
+    
+    struct Context {
+        /// The context API: EGL_OPENGL_ES_API or EGL_OPENGL_API
+        EGLint api;
+        /// The Android EGLContext
+        SmartEGLContext nativeContext;
+        
+        Context(EGLint api, EGLContext nativeContext) : api{api}, nativeContext{nativeContext} {}
+        
+        
+        static inline EGLContext getContext(Context* c) {
+            if (c == EGL_NO_CONTEXT) return EGL_NO_CONTEXT;
+            return c->nativeContext;
+        }
     };
     
     /**
@@ -116,18 +173,12 @@ namespace egl_wrapper {
         virtual EGLBoolean eglGetConfigAttrib(EGLConfig config, EGLint attribute, EGLint* value) = 0;
         virtual EGLBoolean eglGetConfigs(EGLConfig* configs, EGLint config_size, EGLint* num_config) = 0;
         virtual EGLBoolean eglInitialize(EGLint* major, EGLint* minor) = 0;
-        EGLBoolean eglMakeCurrent(EGLSurface draw, EGLSurface read, EGLContext ctx) {
-            // You can get the current context from libglvnd, so just light error checking here.
-            if ((draw == EGL_NO_SURFACE && read != EGL_NO_SURFACE) || (draw != EGL_NO_SURFACE && read == EGL_NO_SURFACE)) return EGL_FALSE;
-            return EGL_TRUE;
-        }
+        virtual EGLBoolean eglMakeCurrent(EGLSurface draw, EGLSurface read, EGLContext ctx) = 0;
         virtual EGLBoolean eglQueryContext(EGLContext ctx, EGLint attribute, EGLint* value) = 0;
         virtual const char* eglQueryString(EGLint name) = 0;
         virtual EGLBoolean eglQuerySurface(EGLSurface surface, EGLint attribute, EGLint* value) = 0;
         virtual EGLBoolean eglSwapBuffers(EGLSurface surface) = 0;
         virtual EGLBoolean eglTerminate() = 0;
-        virtual EGLBoolean eglWaitGL(void) = 0;
-        virtual EGLBoolean eglWaitNative(EGLint engine) = 0;
         
         // EGL 1.1
         virtual EGLBoolean eglBindTexImage(EGLSurface surface, EGLint buffer) = 0;
@@ -138,7 +189,6 @@ namespace egl_wrapper {
         // EGL 1.2
         virtual EGLSurface eglCreatePbufferFromClientBuffer(EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list) = 0;
         virtual EGLBoolean eglReleaseThread(void) = 0;
-        virtual EGLBoolean eglWaitClient(void) = 0;
         
         // EGL 1.4
         virtual EGLContext eglGetCurrentContext(void) = 0;
@@ -183,13 +233,12 @@ namespace egl_wrapper {
         EGLBoolean eglGetConfigAttrib(EGLConfig config, EGLint attribute, EGLint* value);
         EGLBoolean eglGetConfigs(EGLConfig* configs, EGLint config_size, EGLint* num_config);
         EGLBoolean eglInitialize(EGLint* major, EGLint* minor);
+        EGLBoolean eglMakeCurrent(EGLSurface draw, EGLSurface read, EGLContext ctx);
         EGLBoolean eglQueryContext(EGLContext ctx, EGLint attribute, EGLint* value);
         const char* eglQueryString(EGLint name);
         EGLBoolean eglQuerySurface(EGLSurface surface, EGLint attribute, EGLint* value);
         EGLBoolean eglSwapBuffers(EGLSurface surface);
         EGLBoolean eglTerminate();
-        EGLBoolean eglWaitGL(void);
-        EGLBoolean eglWaitNative(EGLint engine);
         
         // EGL 1.1
         EGLBoolean eglBindTexImage(EGLSurface surface, EGLint buffer);
@@ -200,7 +249,6 @@ namespace egl_wrapper {
         // EGL 1.2
         EGLSurface eglCreatePbufferFromClientBuffer(EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list);
         EGLBoolean eglReleaseThread(void);
-        EGLBoolean eglWaitClient(void);
         
         // EGL 1.4
         EGLContext eglGetCurrentContext(void);
@@ -233,6 +281,44 @@ namespace egl_wrapper {
             bool ownsConnection;
             
             bool init = false;
+            int screenIndex;
+            xcb_screen_t* screen;
+            xcb_visualtype_t vis;
+            
+            
+            struct WindowSurface : Surface {
+                xcb_connection_t* xcbC = NULL;
+                EGLConfig conf;
+                /// The window
+                xcb_window_t w = -1;
+                // width and height of the window.
+                int wWidth = 1;
+                int wHeight = 1;
+                /// special event id
+                int eid = -1;
+                xcb_special_event_t* ev = NULL;
+                
+                /// The pixmap that get presented to the window on eglSwapBuffers
+                xcb_pixmap_t p = -1;
+                void* pData = NULL;
+                int pFD = -1;
+                int pWidth = 0;
+                int pHeight = 0;
+                
+                bool notifyNeeded = false;
+                
+               virtual ~WindowSurface();
+                
+            };
+            
+            
+            /// The active EGLContexts for this display
+            std::unordered_set<Context*> contexts;
+            
+            /// The active EGLSurfaces for this display
+            std::unordered_set<Surface*> surfaces;
+            
+            
             
             
             X11Display(Display* x11Display, const EGLAttrib *attrib_list);
@@ -251,13 +337,12 @@ namespace egl_wrapper {
             EGLBoolean eglGetConfigAttrib(EGLConfig config, EGLint attribute, EGLint* value);
             EGLBoolean eglGetConfigs(EGLConfig* configs, EGLint config_size, EGLint* num_config);
             EGLBoolean eglInitialize(EGLint* major, EGLint* minor);
+            EGLBoolean eglMakeCurrent(EGLSurface draw, EGLSurface read, EGLContext ctx);
             EGLBoolean eglQueryContext(EGLContext ctx, EGLint attribute, EGLint* value);
             const char* eglQueryString(EGLint name);
             EGLBoolean eglQuerySurface(EGLSurface surface, EGLint attribute, EGLint* value);
             EGLBoolean eglSwapBuffers(EGLSurface surface);
             EGLBoolean eglTerminate();
-            EGLBoolean eglWaitGL(void);
-            EGLBoolean eglWaitNative(EGLint engine);
             
             // EGL 1.1
             EGLBoolean eglBindTexImage(EGLSurface surface, EGLint buffer);
@@ -268,7 +353,6 @@ namespace egl_wrapper {
             // EGL 1.2
             EGLSurface eglCreatePbufferFromClientBuffer(EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list);
             EGLBoolean eglReleaseThread(void);
-            EGLBoolean eglWaitClient(void);
             
             // EGL 1.4
             EGLContext eglGetCurrentContext(void);
@@ -283,6 +367,11 @@ namespace egl_wrapper {
             EGLSurface eglCreatePlatformWindowSurface(EGLConfig config, void* native_window, const EGLAttrib* attrib_list);
             EGLSurface eglCreatePlatformPixmapSurface(EGLConfig config, void* native_pixmap, const EGLAttrib* attrib_list);
             EGLBoolean eglWaitSync(EGLSync sync, EGLint flags);
+            
+            
+            
+            private:
+            void checkExtensions();
             
         };
     #endif
@@ -370,9 +459,18 @@ namespace egl_wrapper {
      */
     extern EGLDisplay nativeDisplay;
     
+    
+    // Turns out this lock isn't needed, libglvnd does locking itself when checking its index table and calling getDispatchAddress or setDispatchIndex
     /// @brief Lock for dispatchIndexMap.
-    extern std::mutex dispatchLock;
-    extern std::unordered_map<std::string, int> dispatchIndexMap;
+    //extern std::mutex dispatchLock;
+    
+    //extern std::unordered_map<std::string, int> dispatchIndexMap;
+    
+    extern int eglCreateImageKHRIndex;
+    extern int eglDestroyImageKHRIndex;
+    
+    
+    
     
     /// @brief The last EGL error of the library for a thread
     extern thread_local EGLint lastError;
@@ -457,7 +555,15 @@ namespace egl_wrapper {
         
         // EGL_KHR_image_base
         EGLImageKHR eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint* attrib_list);
-        extern PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR;
+        EGLBoolean eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image);
+        
+        // EGL_ANDROID_create_native_client_buffer
+        EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint* attrib_list);
+        
+        
+        // EGL_ANDROID_get_native_client_buffer
+        EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer* buffer);
+        
         
         
         // GLES2.0
@@ -670,6 +776,17 @@ namespace egl_wrapper {
     extern PFNEGLCREATEPLATFORMWINDOWSURFACEPROC real_eglCreatePlatformWindowSurface;
     extern PFNEGLCREATEPLATFORMPIXMAPSURFACEPROC real_eglCreatePlatformPixmapSurface;
     extern PFNEGLWAITSYNCPROC real_eglWaitSync;
+    
+    // EGL_KHR_image_base
+    extern EGLImageKHR (*real_eglCreateImageKHR)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint* attrib_list);
+    extern EGLBoolean (*real_eglDestroyImageKHR)(EGLDisplay dpy, EGLImageKHR image);
+    
+    // EGL_ANDROID_create_native_client_buffer
+    extern EGLClientBuffer (*real_eglCreateNativeClientBufferANDROID)(const EGLint* attrib_list);
+    
+    
+    // EGL_ANDROID_get_native_client_buffer
+    extern EGLClientBuffer (*real_eglGetNativeClientBufferANDROID)(const struct AHardwareBuffer* buffer);
     
     
     // GLES2.0 functions

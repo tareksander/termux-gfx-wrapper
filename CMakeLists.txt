@@ -21,6 +21,7 @@ set(sources-egl
     android-display
     x11-display
     gles
+    surface
 )
 list(TRANSFORM sources-egl PREPEND src/egl/)
 list(TRANSFORM sources-egl APPEND .cpp)
@@ -32,11 +33,13 @@ list(TRANSFORM sources-vulkan PREPEND src/vulkan/)
 list(TRANSFORM sources-vulkan APPEND .cpp)
 
 
+add_compile_options(-Wall -Wpedantic)
+
 
 add_library(vulkan-android SHARED ${sources-vulkan} wayland/hwbuf.c src/common/android.cpp)
 target_link_libraries(vulkan-android dl)
 if(X11_PLATFORM)
-    target_link_libraries(vulkan-android dl xcb X11 X11-xcb)
+    target_link_libraries(vulkan-android dl xcb xcb-shm xcb-sync xcb-present X11 X11-xcb)
     target_compile_definitions(vulkan-android PUBLIC X11_PLATFORM)
 endif()
 if(WAYLAND_PLATFORM)
@@ -44,9 +47,7 @@ if(WAYLAND_PLATFORM)
     target_compile_definitions(vulkan-android PUBLIC WAYLAND_PLATFORM)
 endif()
 if(ANDROID EQUAL 1)
-target_link_libraries(vulkan-android android)
-else()
-target_compile_options(vulkan-android PUBLIC -Wall -Wpedantic)
+    target_link_libraries(vulkan-android android)
 endif()
 target_include_directories(vulkan-android PRIVATE wayland src/common)
 
@@ -56,7 +57,7 @@ target_include_directories(vulkan-android PRIVATE wayland src/common)
 add_library(egl-android SHARED ${sources-egl} src/common/android.cpp)
 target_link_libraries(egl-android dl)
 if(X11_PLATFORM)
-    target_link_libraries(egl-android dl xcb X11 X11-xcb)
+    target_link_libraries(egl-android dl xcb xcb-shm xcb-sync xcb-present X11 X11-xcb)
     target_compile_definitions(egl-android PUBLIC X11_PLATFORM)
 endif()
 if(WAYLAND_PLATFORM)
@@ -64,9 +65,7 @@ if(WAYLAND_PLATFORM)
     target_compile_definitions(egl-android PUBLIC WAYLAND_PLATFORM)
 endif()
 if(ANDROID EQUAL 1)
-target_link_libraries(egl-android android)
-else()
-target_compile_options(egl-android PUBLIC -Wall -Wpedantic)
+    target_link_libraries(egl-android android)
 endif()
 target_compile_definitions(egl-android PRIVATE DEFAULT_DISPLAY_PLAYFORM=${EGL_DEFAULT_DISPLAY_PLAYFORM})
 target_include_directories(egl-android PRIVATE wayland src/common)

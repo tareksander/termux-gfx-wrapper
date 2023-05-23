@@ -128,8 +128,6 @@ namespace egl_wrapper::dispatch {
     
     
     EGLint eglGetError(void) {
-        fprintf(stdout, "eglGetError\n");
-        fflush(stdout);
         EGLint e = lastError;
         lastError = EGL_SUCCESS;
         return e;
@@ -141,8 +139,6 @@ namespace egl_wrapper::dispatch {
             lastError = EGL_BAD_DISPLAY;
             return EGL_FALSE;
         }
-        fprintf(stdout, "eglInitialize\n");
-        fflush(stdout);
         try {
             CALLD(eglInitialize)(major, minor);
         } CATCH_EGL_EXCEPTIONS
@@ -222,13 +218,12 @@ namespace egl_wrapper::dispatch {
     
     
     EGLBoolean eglWaitGL(void) {
-        // TODO call waitGL on the Android display
-        return EGL_TRUE;
+        return real_eglWaitGL();
     }
     
     
     EGLBoolean eglWaitNative(EGLint engine) {
-        return EGL_FALSE;
+        return real_eglWaitNative(engine);
     }
     
     
@@ -295,14 +290,13 @@ namespace egl_wrapper::dispatch {
     
     
     EGLBoolean eglReleaseThread(void) {
-        // TODO relay to all displays that are initialized
+        // TODO relay to all displays that are initialized, if needed
         return EGL_TRUE;
     }
     
     
     EGLBoolean eglWaitClient(void) {
-        // TODO call waitGL on the android display
-        return EGL_TRUE;
+        return real_eglWaitClient();
     }
     
     
@@ -412,6 +406,63 @@ namespace egl_wrapper::dispatch {
             CALLD(eglWaitSync)(sync, flags);
         } CATCH_EGL_EXCEPTIONS
         return EGL_FALSE;
+    }
+    
+    EGLImageKHR eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint* attrib_list) {
+        glvnd->threadInit();
+        if (dpy == EGL_NO_DISPLAY) {
+            glvnd->setEGLError(EGL_BAD_DISPLAY);
+            return EGL_NO_IMAGE_KHR;
+        }
+        auto vnd = glvnd->getVendorFromDisplay(dpy);
+        if (vnd == thisVendor) {
+            // TODO dispatch to display
+        } else {
+            PFNEGLCREATEIMAGEKHRPROC f = (PFNEGLCREATEIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglCreateImageKHRIndex);
+            if (f == NULL) {
+                glvnd->setEGLError(EGL_BAD_DISPLAY);
+                return EGL_NO_IMAGE_KHR;
+            }
+            return f(dpy, ctx, target, buffer, attrib_list);
+        }
+    }
+    
+    EGLBoolean eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image) {
+        glvnd->threadInit();
+        if (dpy == EGL_NO_DISPLAY) {
+            glvnd->setEGLError(EGL_BAD_DISPLAY);
+            return EGL_FALSE;
+        }
+        auto vnd = glvnd->getVendorFromDisplay(dpy);
+        if (vnd == thisVendor) {
+            // TODO dispatch to display
+        } else {
+            PFNEGLDESTROYIMAGEKHRPROC f = (PFNEGLDESTROYIMAGEKHRPROC) glvnd->fetchDispatchEntry(vnd, eglDestroyImageKHRIndex);
+            if (f == NULL) {
+                glvnd->setEGLError(EGL_BAD_DISPLAY);
+                return EGL_FALSE;
+            }
+            return f(dpy, image);
+        }
+    }
+    
+    
+    EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint* attrib_list) {
+        glvnd->threadInit();
+        // no display, dispatch not possible
+        auto ret = real_eglCreateNativeClientBufferANDROID(attrib_list);
+        lastError = real_eglGetError();
+        return ret;
+    }
+    
+    
+    
+    EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer* buffer) {
+        glvnd->threadInit();
+        // no display, dispatch not possible
+        auto ret = real_eglGetNativeClientBufferANDROID(buffer);
+        lastError = real_eglGetError();
+        return ret;
     }
     
     

@@ -58,8 +58,11 @@ namespace egl_wrapper {
     bool hwbufferRenderingAvailable = true;
     DisplayType defaultDisplayType = DisplayType::DEFAULT_DISPLAY_PLAYFORM;
     EGLDisplay nativeDisplay = EGL_NO_DISPLAY;
-    std::mutex dispatchLock;
-    std::unordered_map<std::string, int> dispatchIndexMap;
+    
+    
+    int eglCreateImageKHRIndex = -1;
+    int eglDestroyImageKHRIndex = -1;
+    
     
     
     PFNEGLCHOOSECONFIGPROC real_eglChooseConfig = NULL;
@@ -108,7 +111,14 @@ namespace egl_wrapper {
     PFNEGLWAITSYNCPROC real_eglWaitSync = NULL;
     
     
-    PFNEGLDESTROYIMAGEKHRPROC dispatch::eglDestroyImageKHR = eglDestroyImage;
+    EGLImageKHR (*real_eglCreateImageKHR)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list) = NULL;
+    EGLBoolean (*real_eglDestroyImageKHR)(EGLDisplay dpy, EGLImageKHR image) = NULL;
+    
+    
+    EGLClientBuffer (*real_eglCreateNativeClientBufferANDROID)(const EGLint* attrib_list) = NULL;
+    
+    
+    EGLClientBuffer (*real_eglGetNativeClientBufferANDROID)(const struct AHardwareBuffer* buffer) = NULL;
     
     
     void (*real_glActiveTexture)(GLenum texture) = NULL;
@@ -307,8 +317,6 @@ namespace egl_wrapper {
             return EGL_FALSE;
         }
         
-        // TODO load GLESv2 and all functions
-        
         
         // get all EGL functions
         EGLFUNC(eglChooseConfig)
@@ -359,6 +367,14 @@ namespace egl_wrapper {
         EGLFUNC_OPT(eglCreatePlatformWindowSurface)
         EGLFUNC_OPT(eglCreatePlatformPixmapSurface)
         EGLFUNC_OPT(eglWaitSync)
+        
+        EGLFUNC_OPT(eglCreateImageKHR)
+        EGLFUNC_OPT(eglDestroyImageKHR)
+        
+        EGLFUNC_OPT(eglCreateNativeClientBufferANDROID)
+        
+        EGLFUNC_OPT(eglGetNativeClientBufferANDROID)
+        
         
         
         GLFUNC(glActiveTexture)
@@ -741,8 +757,8 @@ namespace egl_wrapper {
         if (xlibDisplayList.contains(nativeDisplay)) {
             return xlibDisplayList.at(nativeDisplay);
         } else {
-            fprintf(stderr, "Creating xlib display\n");
-            fflush(stderr);
+            //fprintf(stderr, "Creating xlib display\n");
+            //fflush(stderr);
             X11Display* d = new X11Display((::Display*) nativeDisplay, attrib_list);
             xlibDisplayList[nativeDisplay] = d;
             return d;
@@ -766,8 +782,8 @@ namespace egl_wrapper {
     #endif
     
     EGLDisplay getPlatformDisplay(EGLenum platform, void* nativeDisplay, const EGLAttrib* attrib_list) {
-        fprintf(stderr, "getPlatformDisplay\n");
-        fflush(stderr);
+        //fprintf(stderr, "getPlatformDisplay\n");
+        //fflush(stderr);
         try {
         if (platform == EGL_NONE) {
             // without the platform defined it's impossible to know what nativeDisplay is
@@ -1005,22 +1021,58 @@ namespace egl_wrapper {
     }
     
     void* getDispatchAddress(const char* procName) {
+        if (procName == NULL) return NULL;
+        GENERATE_DISPATCH_IF(eglCreateImageKHR)
+        GENERATE_DISPATCH_IF(eglDestroyImageKHR)
+        GENERATE_DISPATCH_IF(eglCreateNativeClientBufferANDROID)
+        GENERATE_DISPATCH_IF(eglGetNativeClientBufferANDROID)
         return NULL;
     }
     
+    #define DISPATCH_EXT_INDEX(func) if (strcmp(#func, procName) == 0) func ## Index = index;
+    
     void setDispatchIndex(const char* procName, int index) {
-        // could throw with OOM, but not much else we could do here, will abort the program either way.
-        std::unique_lock<std::mutex> l{dispatchLock};
-        dispatchIndexMap[std::string(procName)] = index;
+        if (procName == NULL) return;
+        DISPATCH_EXT_INDEX(eglCreateImageKHR)
+        DISPATCH_EXT_INDEX(eglDestroyImageKHR)
     }
     
     const char* getVendorString(int name) {
         if (name != __EGL_VENDOR_STRING_PLATFORM_EXTENSIONS) return NULL;
         return PLATFORMS_STRING;
     }
-
-
-
+    
+    
+    SmartEGLContext::~SmartEGLContext() {
+        if (c != EGL_NO_CONTEXT) {
+            real_eglDestroyContext(nativeDisplay, c);
+        }
+    }
+    
+    SmartEGLContext& SmartEGLContext::operator=(SmartEGLContext&& o) {
+        if (this != &o) {
+            if (c != EGL_NO_CONTEXT) {
+                real_eglDestroyContext(nativeDisplay, c);
+            }
+            c = o.c;
+            o.c = EGL_NO_CONTEXT;
+        }
+        return *this;
+    }
+    
+    SmartEGLImage::~SmartEGLImage() {
+        if (i != EGL_NO_IMAGE) {
+            // TODO use KHR extension
+        }
+    }
+    
+    SmartEGLImage& SmartEGLImage::operator=(SmartEGLImage&& o) {
+        if (this != &o) {
+            
+        }
+        return *this;
+    }
+    
 }
 
 
@@ -1028,8 +1080,8 @@ namespace egl_wrapper {
 
 
 extern "C" EGLBoolean __egl_Main(uint32_t version, const __EGLapiExports *exports, __EGLvendorInfo *vendor, __EGLapiImports *imports) {
-    fprintf(stdout, "eglMain\n");
-    fflush(stdout);
+    //fprintf(stdout, "eglMain\n");
+    //fflush(stdout);
     if (EGL_VENDOR_ABI_GET_MAJOR_VERSION(version) != 0 || EGL_VENDOR_ABI_GET_MINOR_VERSION(version) < 1) {
         fprintf(stderr, "ERROR: EGL vendor ABI mismatch\n");
         fflush(stderr);
