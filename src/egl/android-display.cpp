@@ -22,7 +22,7 @@ namespace egl_wrapper {
     
     EGLContext AndroidDisplay::eglCreateContext(EGLConfig config, EGLContext share_context, const EGLint* attrib_list) {
         const EGLint* attrib = attrib_list;
-        if (attrib != NULL) {
+        if (attrib != nullptr) {
             while (*attrib != EGL_NONE) {
                 if (*attrib == EGL_CONTEXT_MAJOR_VERSION && *(attrib + 1) == 2) {
                     auto retVal = real_eglCreateContext(nativeDisplay, config, share_context, attrib_list);
@@ -189,7 +189,7 @@ namespace egl_wrapper {
     }
     
     
-    EGLBoolean AndroidDisplay::eglReleaseThread(void) {
+    EGLBoolean AndroidDisplay::eglReleaseThread() {
         auto retVal = real_eglReleaseThread();
         lastError = real_eglGetError();
         return retVal;
@@ -197,7 +197,7 @@ namespace egl_wrapper {
     
     
     
-    EGLContext AndroidDisplay::eglGetCurrentContext(void) {
+    EGLContext AndroidDisplay::eglGetCurrentContext() {
         auto retVal = real_eglGetCurrentContext();
         lastError = real_eglGetError();
         return retVal;

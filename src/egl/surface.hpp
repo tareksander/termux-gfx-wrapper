@@ -8,7 +8,7 @@
 namespace egl_wrapper {
     
     struct SmartEGLSurface final {
-        EGLSurface s;
+        EGLSurface s{};
         
         operator EGLSurface() {
             return s;
@@ -19,13 +19,12 @@ namespace egl_wrapper {
         ~SmartEGLSurface();
         SmartEGLSurface(const SmartEGLSurface& o) = delete;
         SmartEGLSurface& operator=(const SmartEGLSurface& o) = delete;
-        SmartEGLSurface& operator=(SmartEGLSurface&& o);
+        SmartEGLSurface& operator=(SmartEGLSurface&& o) noexcept;
         SmartEGLSurface(SmartEGLSurface&& o) {
             *this = std::move(o);
         }
     };
-    
-    
+
     /**
      * Possible backends for a Surface.
      */
@@ -37,14 +36,12 @@ namespace egl_wrapper {
         
         virtual ~SurfaceBackend() = 0;
     };
-    
-    
+
     struct PBufferSurfaceBackend : SurfaceBackend {
         SmartEGLSurface pbuffer;
         int width, height;
-        virtual ~PBufferSurfaceBackend() {};
+        ~PBufferSurfaceBackend() override = default;
     };
-    
     
     /// Base class for implementation Surfaces.
     struct Surface {
@@ -56,18 +53,16 @@ namespace egl_wrapper {
         std::unique_ptr<SurfaceBackend> backend;
         
         
-        virtual ~Surface() {}
+        virtual ~Surface() = default;
         
         static inline EGLSurface getSurface(Surface* s) {
             if (s == EGL_NO_SURFACE) return EGL_NO_SURFACE;
             if (s->backend->type == SurfaceBackend::Type::PBUFFER) {
-                return static_cast<PBufferSurfaceBackend*>(s->backend.get())->pbuffer;
+                return static_cast<PBufferSurfaceBackend*>(s->backend.get())->pbuffer; // NOLINT(cppcoreguidelines-pro-type-static-cast-downcast)
             }
             return EGL_NO_SURFACE;
         }
     };
-    
-    
 }
 
 
