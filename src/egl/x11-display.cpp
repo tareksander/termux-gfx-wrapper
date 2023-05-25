@@ -29,6 +29,8 @@ static inline int memfd_create(const char *name, unsigned int flags) {
 }
 #endif
 
+#include "format.hpp"
+
 static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret = -1;
@@ -248,6 +250,15 @@ namespace egl_wrapper {
             free(err);
             return EGL_NO_SURFACE;
         }
+        xcb_get_geometry_reply_t* geo = xcb_get_geometry_reply(xcbC, xcb_get_geometry(xcbC, s->w), &err);
+        if (err) {
+            dprintf(2, "Failed to xcb_get_geometry()\n");
+            free(err);
+            return EGL_NO_SURFACE;
+        }
+        s->wWidth = geo->width;
+        s->wHeight = geo->height;
+        free(geo);
         Surface* sraw = s.release();
         surfaces.insert(sraw); // could leak memory for OOM
         return sraw;
@@ -470,8 +481,14 @@ namespace egl_wrapper {
                     return EGL_FALSE;
                 }
 //                xcb_shm_detach(xcbC, seg);
-                
+                // set the alignment, if it was changed, the reading would be broken
+                GLint align;
+                glGetIntegerv(GL_PACK_ALIGNMENT, &align);
+                glPixelStorei(GL_PACK_ALIGNMENT, 4);
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
+                glPixelStorei(GL_PACK_ALIGNMENT, align);
+                
+                format::GLColorToX11((uint32_t*)w->pData, w->pWidth, w->pHeight, true);
                 
                 if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
                     dprintf(2, "could not present\n");
@@ -499,7 +516,15 @@ namespace egl_wrapper {
                 }
                 dprintf(2, "draw resize\n");
             } else {
+                // set the alignment, if it was changed, the reading would be broken
+                
+                GLint align;
+                glGetIntegerv(GL_PACK_ALIGNMENT, &align);
+                glPixelStorei(GL_PACK_ALIGNMENT, 4);
                 real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
+                glPixelStorei(GL_PACK_ALIGNMENT, align);
+                
+                format::GLColorToX11((uint32_t*)w->pData, w->pWidth, w->pHeight, true);
 
 //                /* Create black (foreground) graphic context */
 //                xcb_gcontext_t const gc = xcb_generate_id( xcbC );
@@ -514,7 +539,7 @@ namespace egl_wrapper {
                     return EGL_FALSE;
                 }
                 w->notifyNeeded = true;
-//                dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
+                //dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
             }
             return EGL_TRUE;
         }
