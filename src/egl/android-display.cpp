@@ -112,17 +112,17 @@ namespace egl_wrapper {
             // the declaration is guaranteed to only run once.
             static std::string exts = std::string("EGL_KHR_platform_android") + [&realExtensions]() {
                 if (realExtensions.find("EGL_KHR_image_base") != std::string::npos) {
-                    return std::string("EGL_KHR_image_base");
+                    return std::string(" EGL_KHR_image_base");
                 }
                 return std::string();
             }() + [&realExtensions]() {
                 if (realExtensions.find("EGL_ANDROID_image_native_buffer") != std::string::npos) {
-                    return std::string("EGL_ANDROID_image_native_buffer");
+                    return std::string(" EGL_ANDROID_image_native_buffer");
                 }
                 return std::string();
             }() + [&realExtensions]() {
                 if (realExtensions.find("EGL_ANDROID_get_native_client_buffer") != std::string::npos) {
-                    return std::string("EGL_ANDROID_get_native_client_buffer");
+                    return std::string(" EGL_ANDROID_get_native_client_buffer");
                 }
                 return std::string();
             }();
