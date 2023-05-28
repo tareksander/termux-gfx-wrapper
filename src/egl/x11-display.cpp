@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
+#include <sys/utsname.h>
 
 #ifdef __ANDROID__
 #include <linux/ashmem.h>
@@ -35,37 +36,49 @@ static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret = -1;
     long flags;
-
-
-    fd = memfd_create("xorg", MFD_CLOEXEC|MFD_ALLOW_SEALING);
-    if (fd != -1) {
-        fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK);
-        if (ftruncate(fd, size) < 0) {
-            close(fd);
-        } else {
-            dprintf(2, "Using memfd\n");
-            return fd;
+    
+    // this should be used according to google: https://android.googlesource.com/platform/art/+/master/libartbase/base/memfd.cc#51
+    static bool memfd_available = [] {
+        struct utsname uts;
+        if (uname(&uts) != 0)
+            return false;
+        int major, minor;
+        if (sscanf(uts.release, "%d.%d", &major, &minor) != 2 || major < 3 || (major == 3 && minor < 17))
+            return false;
+        return true;
+    }();
+    
+    if (memfd_available) {
+        fd = memfd_create("xorg", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+        if (fd != -1) {
+            fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK);
+            if (ftruncate(fd, size) < 0) {
+                close(fd);
+            } else {
+                //dprintf(2, "Using memfd\n");
+                return fd;
+            }
         }
+    } else {
+        #ifdef __ANDROID__
+            fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
+            if (fd < 0)
+                return fd;
+            ret = ioctl(fd, /** ASHMEM_SET_SIZE */ _IOW(0x77, 3, size_t), size);
+            if (ret < 0)
+                goto err;
+            flags = fcntl(fd, F_GETFD);
+            if (flags == -1)
+                goto err;
+            if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
+                goto err;
+
+            //dprintf(2, "Using ashmem\n");
+            return fd;
+            err:
+            close(fd);
+        #endif
     }
-
-#ifdef __ANDROID__
-    fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
-    if (fd < 0)
-        return fd;
-    ret = ioctl(fd, /** ASHMEM_SET_SIZE */ _IOW(0x77, 3, size_t), size);
-    if (ret < 0)
-        goto err;
-    flags = fcntl(fd, F_GETFD);
-    if (flags == -1)
-        goto err;
-    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
-        goto err;
-
-    dprintf(2, "Using ashmem\n");
-    return fd;
-    err:
-    close(fd);
-#endif
     return ret;
 }
 
@@ -553,7 +566,7 @@ namespace egl_wrapper {
                     w->backend = std::move(backend);
                     // next frame will go to the new size buffer
                     real_eglMakeCurrent(nativeDisplay, Surface::getSurface(w), Surface::getSurface(w), Context::getContext((Context*) glvnd->getCurrentContext()));
-                    dprintf(2, "draw resize\n");
+                    //dprintf(2, "draw resize\n");
                 } else {
                     // only present the buffer to the pixmap if the last one completed
                     if (w->presented) {
