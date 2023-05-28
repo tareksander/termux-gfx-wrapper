@@ -292,6 +292,18 @@ namespace egl_wrapper::dispatch {
         if (name == GL_EXTENSIONS) {
             return (const GLubyte*) ""; // TODO wrap extensions
         }
+        if (name == GL_VENDOR) {
+            static std::string vendor = [] {
+                return std::string("termux-gfx-wrapper (") + (char*) real_glGetString(GL_VENDOR) + ")";
+            }();
+            return (const GLubyte*) vendor.c_str();
+        }
+        if (name == GL_RENDERER) {
+            static std::string renderer = [] {
+                return std::string("termux-gfx-wrapper (") + (char*) real_glGetString(GL_RENDERER) + ")";
+            }();
+            return (const GLubyte*) renderer.c_str();
+        }
         return real_glGetString(name);
     }
     
