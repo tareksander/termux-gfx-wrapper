@@ -1,7 +1,7 @@
 #include "format.hpp"
 
 #include <endian.h>
-
+/*
 
 
 static int pixelCoord(int width, int x, int y) {
@@ -43,3 +43,5 @@ void format::GLColorToX11(uint32_t* pixels, int width, int height, bool flipX) {
     #endif
     // Nothing to do on big endian, if there are even Android systems with that.
 }
+
+*/

@@ -54,7 +54,11 @@ target_include_directories(vulkan-android PRIVATE wayland src/common)
 
 
 
-add_library(egl-android SHARED ${sources-egl} src/common/android.cpp src/common/format.cpp)
+add_library(egl-android SHARED
+    ${sources-egl}
+    src/common/android.cpp
+    #src/common/format.cpp
+    )
 target_link_libraries(egl-android dl)
 if(X11_PLATFORM)
     target_link_libraries(egl-android dl xcb xcb-shm xcb-sync xcb-present X11 X11-xcb)

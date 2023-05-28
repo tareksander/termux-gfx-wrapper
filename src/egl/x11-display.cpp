@@ -417,8 +417,14 @@ namespace egl_wrapper {
     const char* X11Display::eglQueryString(EGLint name) {
         if (name == EGL_CLIENT_APIS) return "OpenGL_ES";
         if (name == EGL_EXTENSIONS) return "EGL_KHR_platform_x11 EGL_EXT_platform_x11 EGL_EXT_platform_xcb";
-        if (name == EGL_VENDOR) return "Termux EGL wrapper X11";
-        if (name == EGL_VERSION) return "1.4 Termux EGL wrapper X11";
+        static std::string vendor = [] {
+            return std::string("termux-gfx-wrapper (") + real_eglQueryString(nativeDisplay, EGL_VENDOR) + ")";
+        }();
+        if (name == EGL_VENDOR) return vendor.c_str();
+        static std::string version = [] {
+            return std::string("1.4 termux-gfx-wrapper (") + real_eglQueryString(nativeDisplay, EGL_VENDOR) + ")";
+        }();
+        if (name == EGL_VERSION) return version.c_str();
         return nullptr;
     }
 
