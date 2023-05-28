@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
+#include <endian.h>
 
 namespace format {
     
