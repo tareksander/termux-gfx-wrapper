@@ -245,7 +245,7 @@ namespace egl_wrapper {
         s->backend = std::move(backend);
         s->eid = xcb_generate_id(xcbC);
         s->ev = xcb_register_for_special_xge(xcbC, &xcb_present_id, s->eid, nullptr);
-        if ((err = xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)))) {
+        if ((err = xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_IDLE_NOTIFY | XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)))) {
             dprintf(2, "Failed to xcb_present_select_input_checked()\n");
             free(err);
             return EGL_NO_SURFACE;
@@ -276,17 +276,38 @@ namespace egl_wrapper {
     }
 
     X11Display::WindowSurface::~WindowSurface() {
-        if (p != -1) {
-            xcb_free_pixmap(xcbC, p);
+        for (int i = 0; i <= 1; i++) {
+            while (! pNotified[i]) {
+                xcb_generic_event_t* e;
+                while ((e = xcb_wait_for_special_event(xcbC, ev)) != nullptr) {
+                    auto pe = reinterpret_cast<xcb_present_generic_event_t*>(e);
+                    if (pe->evtype == XCB_PRESENT_IDLE_NOTIFY) {
+                        auto ie = reinterpret_cast<xcb_present_idle_notify_event_t*>(e);
+                        if (ie->pixmap == p[0]) {
+                            pNotified[0] = true;
+                        }
+                        if (ie->pixmap == p[1]) {
+                            pNotified[1] = true;
+                        }
+                        if (pNotified[i]) break;
+                    }
+                }
+            }
+            if (p[i] != -1) {
+                xcb_free_pixmap(xcbC, p[i]);
+            }
+            if (seg[i] != -1) {
+                xcb_shm_detach(xcbC, seg[i]);
+            }
+            if (pFD[i] != -1) {
+                close(pFD[i]);
+            }
+            if (pData[i] != nullptr) {
+                munmap(pData[i], pWidth[i] * pHeight[i] * 4);
+            }
         }
         if (ev != nullptr) {
             xcb_unregister_for_special_event(xcbC, ev);
-        }
-        if (pFD != -1) {
-            close(pFD);
-        }
-        if (pData != nullptr) {
-            munmap(pData, pWidth * pHeight * 4);
         }
     }
 
@@ -415,89 +436,108 @@ namespace egl_wrapper {
                         w->wHeight = ce->height;
                     }
                 }
-                if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
-//                    auto ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
-                    w->notifyNeeded = false;
-                }
-            }
-            while (w->notifyNeeded) {
-                auto pe = reinterpret_cast<xcb_present_generic_event_t*>(xcb_wait_for_special_event(xcbC, w->ev));
-                if (pe->evtype == XCB_PRESENT_CONFIGURE_NOTIFY) {
-                    auto ce = reinterpret_cast<xcb_present_configure_notify_event_t*>(pe);
-                    if (ce->window == w->w) {
-                        w->wWidth = ce->width;
-                        w->wHeight = ce->height;
+                if (pe->evtype == XCB_PRESENT_IDLE_NOTIFY) {
+                    auto ie = reinterpret_cast<xcb_present_idle_notify_event_t*>(e);
+                    if (ie->pixmap == w->p[0]) {
+                        w->pNotified[0] = true;
+                    }
+                    if (ie->pixmap == w->p[1]) {
+                        w->pNotified[1] = true;
                     }
                 }
                 if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
-//                    auto ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
-                    w->notifyNeeded = false;
+                    w->presented = true;
                 }
             }
-            if (w->wWidth != w->pWidth || w->wHeight != w->pHeight || w->pData == nullptr) {
-                if (w->p != -1) {
-                    xcb_free_pixmap(xcbC, w->p);
+            while (! w->pNotified[w->currentP]) {
+                while ((e = xcb_wait_for_special_event(xcbC, w->ev)) != nullptr) {
+                    auto pe = reinterpret_cast<xcb_present_generic_event_t*>(e);
+                    if (pe->evtype == XCB_PRESENT_IDLE_NOTIFY) {
+                        auto ie = reinterpret_cast<xcb_present_idle_notify_event_t*>(e);
+                        if (ie->pixmap == w->p[0]) {
+                            w->pNotified[0] = true;
+                        }
+                        if (ie->pixmap == w->p[1]) {
+                            w->pNotified[1] = true;
+                        }
+                        if (w->pNotified[w->currentP]) break;
+                    }
+                    if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
+                        w->presented = true;
+                    }
                 }
-                if (w->pFD != -1) {
-                    close(w->pFD);
-                }
-                if (w->pData != nullptr) {
-                    munmap(w->pData, w->pWidth * w->pHeight * 4);
-                }
-                w->pWidth = w->wWidth;
-                w->pHeight = w->wHeight;
-                w->pFD = os_create_anonymous_file(w->pWidth * w->pHeight * 4);
-                if (w->pFD == -1) {
-                    dprintf(2, "Failed to create anonymous file\n");
-                    return EGL_FALSE;
-                }
-                w->pData = mmap(nullptr, w->pWidth * w->pHeight * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD, 0);
-                if (w->pData == MAP_FAILED) {
-                    dprintf(2, "could not mmap ashmem\n");
-                    close(w->pFD);
-                    w->pFD = -1;
-                    w->pData = nullptr;
-                    return EGL_FALSE;
-                }
-                xcb_shm_seg_t seg = w-> seg = xcb_generate_id(xcbC);
-                if ((err = xcb_request_check(xcbC, xcb_shm_attach_fd_checked(xcbC, seg, w->pFD, false)))) {
-                    dprintf(2, "could create shm\n");
-                    close(w->pFD);
-                    w->pFD = -1;
-                    w->pData = nullptr;
-                    free(err);
-                    return EGL_FALSE;
-                }
-                w->p = xcb_generate_id(xcbC);
-                if ((err = xcb_request_check(xcbC, xcb_shm_create_pixmap_checked(xcbC, w->p, w->w, w->pWidth, w->pHeight, 24, seg, 0)))) {
-                    dprintf(2, "could not create pixmap\n");
-                    close(w->pFD);
-                    w->pFD = -1;
-                    munmap(w->pData, w->pWidth * w->pHeight * 4);
-                    w->pData = nullptr;
-                    w->p = -1;
-                    xcb_shm_detach(xcbC, seg);
-                    free(err);
-                    return EGL_FALSE;
-                }
-//                xcb_shm_detach(xcbC, seg);
-                // set the alignment, if it was changed, the reading would be broken
-                GLint align;
-                glGetIntegerv(GL_PACK_ALIGNMENT, &align);
-                glPixelStorei(GL_PACK_ALIGNMENT, 4);
-                real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
-                glPixelStorei(GL_PACK_ALIGNMENT, align);
+            }
+            if (w->backend->type == SurfaceBackend::Type::HWBUFFER) {
                 
-                format::GLColorToX11((uint32_t*)w->pData, w->pWidth, w->pHeight, true);
-                
-                if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
-                    dprintf(2, "could not present\n");
-                    free(err);
-                    return EGL_FALSE;
-                }
-                w->notifyNeeded = true;
-                
-                if (w->backend->type == SurfaceBackend::Type::PBUFFER) {
+            } else {
+                if (w->wWidth != w->pWidth[w->currentP] || w->wHeight != w->pHeight[w->currentP] || w->pData[w->currentP] == nullptr) {
+                    if (w->p[w->currentP] != -1) {
+                        xcb_free_pixmap(xcbC, w->p[w->currentP]);
+                    }
+                    if (w->pFD[w->currentP] != -1) {
+                        close(w->pFD[w->currentP]);
+                    }
+                    if (w->pData[w->currentP] != nullptr) {
+                        munmap(w->pData[w->currentP], w->pWidth[w->currentP] * w->pHeight[w->currentP] * 4);
+                    }
+                    w->pWidth[w->currentP] = w->wWidth;
+                    w->pHeight[w->currentP] = w->wHeight;
+                    w->pFD[w->currentP] = os_create_anonymous_file(w->pWidth[w->currentP] * w->pHeight[w->currentP] * 4);
+                    if (w->pFD[w->currentP] == -1) {
+                        dprintf(2, "Failed to create anonymous file\n");
+                        return EGL_FALSE;
+                    }
+                    w->pData[w->currentP] = mmap(nullptr, w->pWidth[w->currentP] * w->pHeight[w->currentP] * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD[w->currentP], 0);
+                    if (w->pData == MAP_FAILED) {
+                        dprintf(2, "could not mmap ashmem\n");
+                        close(w->pFD[w->currentP]);
+                        w->pFD[w->currentP] = -1;
+                        w->pData[w->currentP] = nullptr;
+                        return EGL_FALSE;
+                    }
+                    xcb_shm_seg_t seg = w->seg[w->currentP] = xcb_generate_id(xcbC);
+                    if ((err = xcb_request_check(xcbC, xcb_shm_attach_fd_checked(xcbC, seg, w->pFD[w->currentP], false)))) {
+                        dprintf(2, "could create shm\n");
+                        close(w->pFD[w->currentP]);
+                        w->pFD[w->currentP] = -1;
+                        w->pData[w->currentP] = nullptr;
+                        free(err);
+                        return EGL_FALSE;
+                    }
+                    w->p[w->currentP] = xcb_generate_id(xcbC);
+                    if ((err = xcb_request_check(xcbC, xcb_shm_create_pixmap_checked(xcbC, w->p[w->currentP], w->w, w->pWidth[w->currentP], w->pHeight[w->currentP], 24, seg, 0)))) {
+                        dprintf(2, "could not create pixmap\n");
+                        close(w->pFD[w->currentP]);
+                        w->pFD[w->currentP] = -1;
+                        munmap(w->pData, w->pWidth[w->currentP] * w->pHeight[w->currentP] * 4);
+                        w->pData[w->currentP] = nullptr;
+                        w->p[w->currentP] = -1;
+                        xcb_shm_detach(xcbC, seg);
+                        free(err);
+                        return EGL_FALSE;
+                    }
+                    
+                    // only present the buffer to the pixmap if the last one completed
+                    if (w->presented) {
+                        // set the alignment, if it was changed, the reading would be broken
+                        GLint align;
+                        glGetIntegerv(GL_PACK_ALIGNMENT, &align);
+                        glPixelStorei(GL_PACK_ALIGNMENT, 4);
+                        real_glReadPixels(0, 0, w->pWidth[w->currentP], w->pHeight[w->currentP], GL_RGBA, GL_UNSIGNED_BYTE, w->pData[w->currentP]);
+                        glPixelStorei(GL_PACK_ALIGNMENT, align);
+                        
+                        format::GLColorToX11((uint32_t*)w->pData[w->currentP], w->pWidth[w->currentP], w->pHeight[w->currentP], true);
+                        
+                        if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p[w->currentP], 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
+                            dprintf(2, "could not present\n");
+                            free(err);
+                            return EGL_FALSE;
+                        }
+                        w->pNotified[w->currentP] = false;
+                        w->currentP = (w->currentP + 1) % 2;
+                        w->presented = false;
+                    }
+                    
                     auto backend = std::make_unique<PBufferSurfaceBackend>();
                     backend->width = w->wWidth;
                     backend->height = w->wHeight;
@@ -513,33 +553,38 @@ namespace egl_wrapper {
                     w->backend = std::move(backend);
                     // next frame will go to the new size buffer
                     real_eglMakeCurrent(nativeDisplay, Surface::getSurface(w), Surface::getSurface(w), Context::getContext((Context*) glvnd->getCurrentContext()));
-                }
-                dprintf(2, "draw resize\n");
-            } else {
-                // set the alignment, if it was changed, the reading would be broken
-                
-                GLint align;
-                glGetIntegerv(GL_PACK_ALIGNMENT, &align);
-                glPixelStorei(GL_PACK_ALIGNMENT, 4);
-                real_glReadPixels(0, 0, w->pWidth, w->pHeight, GL_RGBA, GL_UNSIGNED_BYTE, w->pData);
-                glPixelStorei(GL_PACK_ALIGNMENT, align);
-                
-                format::GLColorToX11((uint32_t*)w->pData, w->pWidth, w->pHeight, true);
+                    dprintf(2, "draw resize\n");
+                } else {
+                    // only present the buffer to the pixmap if the last one completed
+                    if (w->presented) {
+                        // set the alignment, if it was changed, the reading would be broken
+                        
+                        GLint align;
+                        glGetIntegerv(GL_PACK_ALIGNMENT, &align);
+                        glPixelStorei(GL_PACK_ALIGNMENT, 4);
+                        real_glReadPixels(0, 0, w->pWidth[w->currentP], w->pHeight[w->currentP], GL_RGBA, GL_UNSIGNED_BYTE, w->pData[w->currentP]);
+                        glPixelStorei(GL_PACK_ALIGNMENT, align);
+                        
+                        format::GLColorToX11((uint32_t*)w->pData[w->currentP], w->pWidth[w->currentP], w->pHeight[w->currentP], true);
 
-//                /* Create black (foreground) graphic context */
-//                xcb_gcontext_t const gc = xcb_generate_id( xcbC );
-//                uint32_t const gc_mask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
-//                uint32_t const gc_values[] = {screen->black_pixel, 0};
-//                xcb_create_gc(xcbC, gc, w->w, gc_mask, gc_values);
-//                free(xcb_request_check(xcbC, xcb_shm_put_image(xcbC, w->w, gc, w->wWidth, w->wHeight, 0, 0, w->pWidth, w->pHeight, 0, 0, 24, XCB_IMAGE_FORMAT_Z_PIXMAP, 0, w->seg, 0)));
+        //                /* Create black (foreground) graphic context */
+        //                xcb_gcontext_t const gc = xcb_generate_id( xcbC );
+        //                uint32_t const gc_mask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
+        //                uint32_t const gc_values[] = {screen->black_pixel, 0};
+        //                xcb_create_gc(xcbC, gc, w->w, gc_mask, gc_values);
+        //                free(xcb_request_check(xcbC, xcb_shm_put_image(xcbC, w->w, gc, w->wWidth, w->wHeight, 0, 0, w->pWidth, w->pHeight, 0, 0, 24, XCB_IMAGE_FORMAT_Z_PIXMAP, 0, w->seg, 0)));
 
-                if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p, 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
-                    dprintf(2, "Failed to xcb_present_pixmap_checked()\n");
-                    free(err);
-                    return EGL_FALSE;
+                        if ((err = xcb_request_check(xcbC, xcb_present_pixmap_checked(xcbC, w->w, w->p[w->currentP], 0, 0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr)))) {
+                            dprintf(2, "Failed to xcb_present_pixmap_checked()\n");
+                            free(err);
+                            return EGL_FALSE;
+                        }
+                        w->pNotified[w->currentP] = false;
+                        //dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
+                        w->currentP = (w->currentP + 1) % 2;
+                        w->presented = false;
+                    }
                 }
-                w->notifyNeeded = true;
-                //dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
             }
             return EGL_TRUE;
         }

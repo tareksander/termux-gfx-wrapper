@@ -3,9 +3,31 @@
 #define EGL_EGL_PROTOTYPES 0
 #include <EGL/egl.h>
 
+#include <GLES2/gl2.h>
+
 #include <memory>
 
+#include "android.hpp"
+
 namespace egl_wrapper {
+    
+    struct SmartEGLImage final {
+        EGLImage i;
+        
+        operator EGLImage() {
+            return i;
+        }
+        
+        SmartEGLImage() : i{EGL_NO_IMAGE} {}
+        SmartEGLImage(EGLImage i) : i{i} {}
+        ~SmartEGLImage();
+        SmartEGLImage(const SmartEGLImage& o) = delete;
+        SmartEGLImage& operator=(const SmartEGLImage& o) = delete;
+        SmartEGLImage& operator=(SmartEGLImage&& o);
+        SmartEGLImage(SmartEGLImage&& o) {
+            *this = std::move(o);
+        }
+    };
     
     struct SmartEGLSurface final {
         EGLSurface s{};
@@ -21,6 +43,24 @@ namespace egl_wrapper {
         SmartEGLSurface& operator=(const SmartEGLSurface& o) = delete;
         SmartEGLSurface& operator=(SmartEGLSurface&& o) noexcept;
         SmartEGLSurface(SmartEGLSurface&& o) {
+            *this = std::move(o);
+        }
+    };
+    
+    struct SmartHardwareBuffer final {
+        AHardwareBuffer* hb;
+        
+        operator AHardwareBuffer*() {
+            return hb;
+        }
+        
+        SmartHardwareBuffer() : hb{nullptr} {}
+        explicit SmartHardwareBuffer(AHardwareBuffer* hb) : hb{hb} {}
+        ~SmartHardwareBuffer();
+        SmartHardwareBuffer(const SmartHardwareBuffer& o);
+        SmartHardwareBuffer& operator=(const SmartHardwareBuffer& o);
+        SmartHardwareBuffer& operator=(SmartHardwareBuffer&& o) noexcept;
+        SmartHardwareBuffer(SmartHardwareBuffer&& o) {
             *this = std::move(o);
         }
     };
@@ -42,6 +82,29 @@ namespace egl_wrapper {
         int width, height;
         ~PBufferSurfaceBackend() override = default;
     };
+    
+    /**
+     * Double-buffered HardwareBuffer surface.
+     * 
+     */
+    struct HardwareBufferSurfaceBackend : SurfaceBackend {
+        // GL state for HardwareBuffers
+        struct HBGLState {
+            GLint renderbuffer;
+            GLint renderbufferDepth;
+            GLint framebuffer;
+        };
+        
+        SmartHardwareBuffer buffers[2];
+        SmartEGLImage images[2];
+        // Regenerate this on makeCurrent with a context
+        HBGLState gl[2];
+        int width = 0, height = 0;
+        int current = 0;
+        
+        ~HardwareBufferSurfaceBackend() override = default;
+    };
+    
     
     /// Base class for implementation Surfaces.
     struct Surface {

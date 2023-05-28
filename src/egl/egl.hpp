@@ -254,23 +254,6 @@ namespace egl_wrapper {
         }
     };
     
-    struct SmartEGLImage final {
-        EGLImage i;
-        
-        operator EGLImage() {
-            return i;
-        }
-        
-        SmartEGLImage() : i{EGL_NO_IMAGE} {}
-        SmartEGLImage(EGLImage i) : i{i} {}
-        ~SmartEGLImage();
-        SmartEGLImage(const SmartEGLImage& o) = delete;
-        SmartEGLImage& operator=(const SmartEGLImage& o) = delete;
-        SmartEGLImage& operator=(SmartEGLImage&& o);
-        SmartEGLImage(SmartEGLImage&& o) {
-            *this = std::move(o);
-        }
-    };
     
     struct Context {
         /// The context API: EGL_OPENGL_ES_API or EGL_OPENGL_API
@@ -452,14 +435,25 @@ namespace egl_wrapper {
                 xcb_special_event_t* ev = nullptr;
                 
                 /// The pixmap that get presented to the window on eglSwapBuffers
-                xcb_pixmap_t p = -1;
-                void* pData = nullptr;
-                int pFD = -1;
-                int pWidth = 0;
-                int pHeight = 0;
-                int seg = -1;
+                xcb_pixmap_t p[2] = {(xcb_pixmap_t)-1, (xcb_pixmap_t)-1};
+                /// The pixmap mapped in memory
+                void* pData[2] = {nullptr, nullptr};
+                /// The pixmap file descriptors
+                int pFD[2] = {-1, -1};
+                /// The pixmap shared memory segments
+                int seg[2] = {-1, -1};
+                /// The pixmap widths
+                int pWidth[2] = {0, 0};
+                /// The pixmap heights
+                int pHeight[2] = {0, 0};
+                /// Whether the X server is done with a pixmap
+                bool pNotified[2] = {true, true};
+                /// Whether the last present operation is complete
+                bool presented = true;
                 
-                bool notifyNeeded = false;
+                /// The next Pixmap to render to
+                uint8_t currentP = 0;
+                
                 
                virtual ~WindowSurface();
                 
@@ -597,6 +591,12 @@ namespace egl_wrapper {
      * 
      */
     extern bool hwbufferRenderingAvailable;
+    
+    /**
+     * @brief Whether extracting the DMABUF fd from an HardwareBuffer works correctly.
+     * 
+     */
+    extern bool hwbufferDMABUFAvailable;
     /**
      * @brief The default display platform, for eglGetDisplay.
      * 
@@ -627,6 +627,10 @@ namespace egl_wrapper {
     void* getDispatchAddress(const char* procName);
     void setDispatchIndex(const char* procName, int index);
     const char* getVendorString(int name);
+    
+    /// Returns the DMABUF fd from an HardwareBuffer.
+    int HBDMABUF(AHardwareBuffer* hb);
+    
     
     /**
      * @brief Functions that dispatch to the EGLDisplayBackend.

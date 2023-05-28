@@ -8,6 +8,11 @@
 
 #include <string>
 #include <vector>
+#include <thread>
+
+#include <sys/socket.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 
 /**
@@ -45,6 +50,7 @@ namespace egl_wrapper {
     const __EGLapiExports* glvnd = nullptr;
     __EGLvendorInfo *thisVendor = nullptr;
     bool hwbufferRenderingAvailable = true;
+    bool hwbufferDMABUFAvailable = false;
     DisplayType defaultDisplayType = DisplayType::DEFAULT_DISPLAY_PLAYFORM;
     EGLDisplay nativeDisplay = EGL_NO_DISPLAY;
     
@@ -291,6 +297,9 @@ namespace egl_wrapper {
             fflush(stderr);
             return EGL_FALSE;
         }
+        if (minor < 5) {
+            androidDisplay.egl15 = false;
+        }
         
         // loop, so we can break out of the block without having to use exceptions
         while (true) {
@@ -315,7 +324,7 @@ namespace egl_wrapper {
             std::string exts(exts_raw);
             if (exts.find("EGL_KHR_image_base") == std::string::npos) {
                 // fprintf(stderr, "ERROR: EGL_KHR_image_base extension not supported, EGL emulation not possible\n");
-                // fflush(stderr);
+                fflush(stderr);
                 // return EGL_FALSE;
                 hwbufferRenderingAvailable = false;
                 break;
@@ -339,7 +348,7 @@ namespace egl_wrapper {
             EGLConfig conf;
             EGLint config_attributes[] = { EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_NONE };
             if (real_eglChooseConfig(nativeDisplay, config_attributes, &conf, 1, &configSize) == EGL_FALSE || configSize == 0) {
-                // fprintf(stderr, "ERROR: GLES error, EGL emulation not possible\n");
+                // fprintf(stderr, "ERROR: no EGLConfig\n");
                 // fflush(stderr);
                 // return EGL_FALSE;
                 hwbufferRenderingAvailable = false;
@@ -348,7 +357,7 @@ namespace egl_wrapper {
             EGLint context_attributes[] = { EGL_CONTEXT_MAJOR_VERSION, 2, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE };
             EGLContext ctx = real_eglCreateContext(nativeDisplay, conf, EGL_NO_CONTEXT, context_attributes);
             if (ctx == EGL_NO_CONTEXT) {
-                // fprintf(stderr, "ERROR: GLES error, EGL emulation not possible\n");
+                // fprintf(stderr, "ERROR: no EGLContext\n");
                 // fflush(stderr);
                 // return EGL_FALSE;
                 hwbufferRenderingAvailable = false;
@@ -356,13 +365,15 @@ namespace egl_wrapper {
             }
             EGLint pbAttrib[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
             EGLSurface pbs = EGL_NO_SURFACE;
-            if (real_eglCreatePbufferSurface(nativeDisplay, conf, pbAttrib) == EGL_FALSE) {
+            if ((pbs = real_eglCreatePbufferSurface(nativeDisplay, conf, pbAttrib)) == EGL_NO_SURFACE) {
                 real_eglDestroyContext(nativeDisplay, ctx);
+                // fprintf(stderr, "ERROR: no PBuffer\n");
+                // fflush(stderr);
                 break;
             }
             
             if (real_eglMakeCurrent(nativeDisplay, pbs, pbs, ctx) == EGL_FALSE) {
-                // fprintf(stderr, "ERROR: GLES error, EGL emulation not possible\n");
+                // fprintf(stderr, "ERROR: make current: 0x%x\n", real_eglGetError());
                 // fflush(stderr);
                 // return EGL_FALSE;
                 hwbufferRenderingAvailable = false;
@@ -383,20 +394,52 @@ namespace egl_wrapper {
                 real_eglDestroySurface(nativeDisplay, pbs);
                 break;
             }
-            if (gl_exts.find("GL_OES_framebuffer_object") == std::string::npos) {
-                // fprintf(stderr, "ERROR: GL_OES_framebuffer_object extension not supported, EGL emulation not possible\n");
-                // fflush(stderr);
-                // return EGL_FALSE;
-                hwbufferRenderingAvailable = false;
-                real_eglDestroyContext(nativeDisplay, ctx);
-                real_eglDestroySurface(nativeDisplay, pbs);
-                break;
-            }
+            // not needed for GLES2
+            // if (gl_exts.find("GL_OES_framebuffer_object") == std::string::npos) {
+            //     fprintf(stderr, "ERROR: GL_OES_framebuffer_object extension not supported, EGL emulation not possible\n");
+            //     fflush(stderr);
+            //     hwbufferRenderingAvailable = false;
+            //     real_eglDestroyContext(nativeDisplay, ctx);
+            //     real_eglDestroySurface(nativeDisplay, pbs);
+            //     break;
+            // }
             real_eglMakeCurrent(nativeDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             real_eglDestroyContext(nativeDisplay, ctx);
             real_eglDestroySurface(nativeDisplay, pbs);
             break;
         }
+        
+        //fprintf(stderr, "hb: %d\n", (int) hwbufferRenderingAvailable);
+        
+        if (hwbufferRenderingAvailable) {
+            AHardwareBuffer* hb;
+            AHardwareBuffer_Desc desc{};
+            desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+            desc.width = 2;
+            desc.height = 2;
+            desc.layers = 1;
+            desc.usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
+            if (libandroid.AHardwareBuffer_allocate(&desc, &hb) == 0) {
+                SmartHardwareBuffer shb{hb};
+                int fd = HBDMABUF(hb);
+                if (fd != -1) {
+                    void* adr = mmap(nullptr, 4 * 4, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+                    if (adr != MAP_FAILED) {
+                        munmap(adr, 4 * 4);
+                        hwbufferDMABUFAvailable = true;
+                    } else {
+                        //fprintf(stderr, "could not map\n");
+                    }
+                    close(fd);
+                } else {
+                    //fprintf(stderr, "invalid fd\n");
+                }
+            } else {
+                //fprintf(stderr, "could not create hardware buffer\n");
+            }
+        }
+        //fprintf(stderr, "DMABUF: %d\n", (int) hwbufferDMABUFAvailable);
+        //fflush(stderr);
         
         // get the default platform backend from the env variable, if set
         const char* priority_backend = getenv(TERMUX_EGL_TYPE_ENV);
@@ -622,7 +665,59 @@ namespace egl_wrapper {
         }
         return *this;
     }
-    
+
+
+    int HBDMABUF(AHardwareBuffer* hb) {
+        //fprintf(stderr, "test\n");
+        int socks[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, socks) == 0) {
+            try {
+                std::thread sender{[&] {
+                    libandroid.AHardwareBuffer_sendHandleToUnixSocket(hb, socks[1]);
+                    close(socks[1]);
+                }};
+                struct msghdr msg{};
+                msg.msg_name = nullptr;
+                msg.msg_namelen = 0;
+                struct iovec iov{};
+                char iobuf[100];
+                iov.iov_base = iobuf;
+                iov.iov_len = sizeof(iobuf);
+                msg.msg_iov = &iov;
+                msg.msg_iovlen = 1;
+                constexpr int CONTROLLEN = CMSG_SPACE(sizeof(int)*50);
+                union {
+                    cmsghdr _; // for alignment
+                    char controlBuffer[CONTROLLEN];
+                } controlBufferUnion;
+                memset(&controlBufferUnion, 0, CONTROLLEN);
+                msg.msg_control = &controlBufferUnion;
+                msg.msg_controllen = sizeof(controlBufferUnion);
+                const int fdindex = 0;
+                int recfd = -1;
+                errno = 0;
+                while (recvmsg(socks[0], &msg, 0) > 0) {
+                    for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg); cmsg != nullptr; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                        if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS && recfd == -1) {
+                            //fprintf(stderr, "len: %ul\n", cmsg->cmsg_len/4);
+                            memcpy(&recfd, CMSG_DATA(cmsg) + sizeof(int) * fdindex, sizeof(recfd));
+                        }
+                    }
+                }
+                //fprintf(stderr, "errno: %d\n", errno);
+                //fflush(stderr);
+                close(socks[0]);
+                sender.join();
+                return recfd;
+            } catch (...) {
+                close(socks[0]);
+            }
+        }
+        //fprintf(stderr, "errno: %d\n", errno);
+        //fflush(stderr);
+        return -1;
+    }
+
 }
 
 extern "C" [[maybe_unused]]
