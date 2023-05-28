@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-#include <endian.h>
 
 namespace format {
     
@@ -24,7 +23,7 @@ namespace format {
      * Can optionally flip the X axis of the image for X11.
      * 
      */
-    inline __attribute__((always_inline)) void format::GLColorToX11(uint32_t* pixels, int width, int height, bool flipX) {
+    inline __attribute__((always_inline)) void GLColorToX11(uint32_t* pixels, int width, int height, bool flipX) {
         #if __BYTE_ORDER == __LITTLE_ENDIAN
             for (int x = 0; x < width; x++) {
                 for (int y = 0; y < height; y++) {
