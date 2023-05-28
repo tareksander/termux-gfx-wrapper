@@ -4,6 +4,20 @@
 namespace egl_wrapper {
     SurfaceBackend::~SurfaceBackend() = default;
     
+    SmartEGLImage::~SmartEGLImage() {
+        if (i != EGL_NO_IMAGE) {
+            real_eglDestroyImageKHR(nativeDisplay, i);
+        }
+    }
+    
+    SmartEGLImage& SmartEGLImage::operator=(SmartEGLImage&& o) {
+        if (this != &o) {
+            i = o.i;
+            o.i = EGL_NO_IMAGE_KHR;
+        }
+        return *this;
+    }
+    
     SmartEGLSurface::~SmartEGLSurface() {
         if (s != EGL_NO_SURFACE)
             real_eglDestroySurface(nativeDisplay, s);

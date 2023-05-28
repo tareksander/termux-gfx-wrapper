@@ -215,6 +215,24 @@ namespace egl_wrapper {
      */
     inline const char* const TERMUX_EGL_TYPE_ENV = "TERMUX_EGL_DEFAULT";
     
+    /**
+     * @brief Environment variable to set the display mode for X11.
+     * 
+     * Valid values: BLOCK, IDLE.
+     * 
+     * BLOCK: Wait for the previous presented image to complete, locking the rendering to the X server refresh rate. Frames are smoother.
+     * 
+     * IDLE: Only wait for X to not use an image anymore before rendering to it, not for the image presentation to complete. Decouples
+     * the rendering from the X refresh rate, but can result in frames missing the deadline and causing stuttering.
+     * 
+     * 
+     */
+    inline const char* const TERMUX_EGL_X11_MODE_ENV = "TERMUX_EGL_X11_MODE";
+    
+    enum X11Mode {
+        BLOCK, IDLE
+    };
+    
     
     inline const char* const PLATFORMS_STRING = 
     "EGL_KHR_platform_android"
@@ -607,6 +625,10 @@ namespace egl_wrapper {
      * 
      */
     extern EGLDisplay nativeDisplay;
+    
+    
+    extern X11Mode x11Mode;
+    
     
     
     // Turns out this lock isn't needed, libglvnd does locking itself when checking its index table and calling getDispatchAddress or setDispatchIndex

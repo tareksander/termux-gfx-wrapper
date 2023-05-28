@@ -53,6 +53,7 @@ namespace egl_wrapper {
     bool hwbufferDMABUFAvailable = false;
     DisplayType defaultDisplayType = DisplayType::DEFAULT_DISPLAY_PLAYFORM;
     EGLDisplay nativeDisplay = EGL_NO_DISPLAY;
+    X11Mode x11Mode = X11Mode::BLOCK;
     
     
     int eglCreateImageKHRIndex = -1;
@@ -458,6 +459,19 @@ namespace egl_wrapper {
             }
         }
         
+        const char* envX11Mode = getenv(TERMUX_EGL_X11_MODE_ENV);
+        if (envX11Mode != nullptr) {
+            std::string mode{envX11Mode};
+            if (mode == "BLOCK") {
+                x11Mode = X11Mode::BLOCK;
+            } else if (mode == "IDLE") {
+                x11Mode = X11Mode::IDLE;
+            }  else {
+                fprintf(stderr, "ERROR: Invalid value for 'TERMUX_EGL_X11_MODE' environment variable: %s\n", envX11Mode);
+                fflush(stderr);
+                return EGL_FALSE;
+            }
+        }
         
         
         return EGL_TRUE;
@@ -653,18 +667,6 @@ namespace egl_wrapper {
         return *this;
     }
     
-    SmartEGLImage::~SmartEGLImage() {
-        if (i != EGL_NO_IMAGE) {
-            // TODO use KHR extension
-        }
-    }
-    
-    SmartEGLImage& SmartEGLImage::operator=(SmartEGLImage&& o) {
-        if (this != &o) {
-            
-        }
-        return *this;
-    }
 
 
     int HBDMABUF(AHardwareBuffer* hb) {

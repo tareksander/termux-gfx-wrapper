@@ -98,9 +98,12 @@ namespace egl_wrapper {
         SmartHardwareBuffer buffers[2];
         SmartEGLImage images[2];
         // Regenerate this on makeCurrent with a context
-        HBGLState gl[2];
+        HBGLState gl;
         int width = 0, height = 0;
         int current = 0;
+        
+        /// A dummy pbuffer surface, so you can use makeCurrent with something
+        EGLSurface dummy;
         
         ~HardwareBufferSurfaceBackend() override = default;
     };
@@ -122,6 +125,9 @@ namespace egl_wrapper {
             if (s == EGL_NO_SURFACE) return EGL_NO_SURFACE;
             if (s->backend->type == SurfaceBackend::Type::PBUFFER) {
                 return static_cast<PBufferSurfaceBackend*>(s->backend.get())->pbuffer; // NOLINT(cppcoreguidelines-pro-type-static-cast-downcast)
+            }
+            if (s->backend->type == SurfaceBackend::Type::HWBUFFER) {
+                return static_cast<HardwareBufferSurfaceBackend*>(s->backend.get())->dummy; // NOLINT(cppcoreguidelines-pro-type-static-cast-downcast)
             }
             return EGL_NO_SURFACE;
         }
