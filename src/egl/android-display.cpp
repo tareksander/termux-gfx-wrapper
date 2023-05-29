@@ -128,6 +128,14 @@ namespace egl_wrapper {
             }();
             return exts.c_str();
         }
+        static std::string vendor = [] {
+            return std::string("termux-gfx-wrapper (") + real_eglQueryString(nativeDisplay, EGL_VENDOR) + ")";
+        }();
+        if (name == EGL_VENDOR) return vendor.c_str();
+        static std::string version = [] {
+            return std::string("1.4 termux-gfx-wrapper (") + real_eglQueryString(nativeDisplay, EGL_VENDOR) + ")";
+        }();
+        if (name == EGL_VERSION) return version.c_str();
         auto retVal = real_eglQueryString(nativeDisplay, name);
         lastError = real_eglGetError();
         return retVal;
