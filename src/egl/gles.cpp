@@ -292,6 +292,9 @@ namespace egl_wrapper::dispatch {
         if (name == GL_EXTENSIONS) {
             return (const GLubyte*) ""; // TODO wrap extensions
         }
+        if (name == GL_VERSION) {
+            return (const GLubyte*) "OpenGL ES 2.0";
+        }
         if (name == GL_VENDOR) {
             static std::string vendor = [] {
                 return std::string("termux-gfx-wrapper (") + (char*) real_glGetString(GL_VENDOR) + ")";
