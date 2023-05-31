@@ -9,6 +9,7 @@
 #define EGL_PLATFORM_XCB_SCREEN_EXT       0x31DE
 
 #define GL_GLES_PROTOTYPES 1
+#define GL_GLEXT_PROTOTYPES 1
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <dlfcn.h>
@@ -205,6 +206,12 @@ m(glVertexAttrib4f)                         \
 m(glVertexAttrib4fv)                        \
 m(glVertexAttribPointer)                    \
 m(glViewport)
+
+
+#define GLES2_0_FUNCS_OPT(m) \
+m(glEGLImageTargetRenderbufferStorageOES) \
+m(glEGLImageTargetTexture2DOES)
+
 
 namespace egl_wrapper {
     /**
@@ -615,6 +622,9 @@ namespace egl_wrapper {
      * 
      */
     extern bool hwbufferDMABUFAvailable;
+    
+    extern bool hwbufferBGRAvailable;
+    
     /**
      * @brief The default display platform, for eglGetDisplay.
      * 
@@ -652,6 +662,17 @@ namespace egl_wrapper {
     
     /// Returns the DMABUF fd from an HardwareBuffer.
     int HBDMABUF(AHardwareBuffer* hb);
+    
+    const inline AHardwareBuffer_Format HAL_PIXEL_FORMAT_BGRA_8888 = (AHardwareBuffer_Format) 5;
+    
+    const inline uint64_t HBUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+    
+    inline AHardwareBuffer_Format HBFormat() {
+        if (hwbufferBGRAvailable) return HAL_PIXEL_FORMAT_BGRA_8888;
+        return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+    }
+    
+    AHardwareBuffer* allocHB(AHardwareBuffer_Format format, uint32_t width, uint32_t height, uint64_t usage);
     
     
     /**
@@ -822,6 +843,7 @@ namespace egl_wrapper {
 
 #define FUNC(name) extern __typeof__(name)* real_ ## name;
     GLES2_0_FUNCS(FUNC)
+    GLES2_0_FUNCS_OPT(FUNC)
 #undef FUNC
 
 }

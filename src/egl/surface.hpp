@@ -2,6 +2,7 @@
 
 #define EGL_EGL_PROTOTYPES 0
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 
 #include <GLES2/gl2.h>
 
@@ -12,14 +13,14 @@
 namespace egl_wrapper {
     
     struct SmartEGLImage final {
-        EGLImage i;
+        EGLImageKHR i;
         
         operator EGLImage() {
             return i;
         }
         
         SmartEGLImage() : i{EGL_NO_IMAGE} {}
-        SmartEGLImage(EGLImage i) : i{i} {}
+        SmartEGLImage(EGLImageKHR i) : i{i} {}
         ~SmartEGLImage();
         SmartEGLImage(const SmartEGLImage& o) = delete;
         SmartEGLImage& operator=(const SmartEGLImage& o) = delete;
@@ -74,12 +75,16 @@ namespace egl_wrapper {
         };
         Type type;
         
+        SurfaceBackend(Type type) : type{type} {}
+        
         virtual ~SurfaceBackend() = 0;
     };
 
     struct PBufferSurfaceBackend : SurfaceBackend {
-        SmartEGLSurface pbuffer;
+        SmartEGLSurface pbuffer = EGL_NO_SURFACE;
         int width, height;
+        
+        PBufferSurfaceBackend() : SurfaceBackend{SurfaceBackend::Type::PBUFFER} {}
         ~PBufferSurfaceBackend() override = default;
     };
     
@@ -90,22 +95,25 @@ namespace egl_wrapper {
     struct HardwareBufferSurfaceBackend : SurfaceBackend {
         // GL state for HardwareBuffers
         struct HBGLState {
-            GLint renderbuffer;
-            GLint renderbufferDepth;
-            GLint framebuffer;
+            EGLContext lastContext = EGL_NO_CONTEXT;
+            GLint renderbuffer[2] = {-1, -1};
+            GLint renderbufferDepth[2] = {-1, -1};
+            GLint framebuffer[2] = {-1, -1};
         };
         
         SmartHardwareBuffer buffers[2];
         SmartEGLImage images[2];
         // Regenerate this on makeCurrent with a context
         HBGLState gl;
-        int width = 0, height = 0;
+        //int width = 0, height = 0;
         int current = 0;
         
         /// A dummy pbuffer surface, so you can use makeCurrent with something
-        EGLSurface dummy;
+        EGLSurface dummy = EGL_NO_SURFACE;
         
-        ~HardwareBufferSurfaceBackend() override = default;
+        
+        HardwareBufferSurfaceBackend() : SurfaceBackend{SurfaceBackend::Type::HWBUFFER} {}
+        virtual ~HardwareBufferSurfaceBackend();
     };
     
     

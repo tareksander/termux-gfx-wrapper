@@ -35,7 +35,9 @@ namespace egl_wrapper {
     }
     
     SmartHardwareBuffer::~SmartHardwareBuffer() {
-        
+        if (hb != nullptr) {
+            libandroid.AHardwareBuffer_release(hb);
+        }
     }
     
     SmartHardwareBuffer& SmartHardwareBuffer::operator=(SmartHardwareBuffer&& o) noexcept {
@@ -55,7 +57,8 @@ namespace egl_wrapper {
                 libandroid.AHardwareBuffer_release(hb);
             }
             hb = o.hb;
-            libandroid.AHardwareBuffer_acquire((AHardwareBuffer*)hb);
+            if (hb != nullptr)
+                libandroid.AHardwareBuffer_acquire((AHardwareBuffer*)hb);
         }
         return *this;
     }
@@ -63,4 +66,23 @@ namespace egl_wrapper {
     SmartHardwareBuffer::SmartHardwareBuffer(const SmartHardwareBuffer& o) {
         *this = o;
     }
+    
+    
+    HardwareBufferSurfaceBackend::~HardwareBufferSurfaceBackend() {
+        if (gl.lastContext != EGL_NO_CONTEXT) {
+            EGLSurface draw = real_eglGetCurrentSurface(EGL_DRAW);
+            EGLSurface read = real_eglGetCurrentSurface(EGL_READ);
+            EGLContext ctx = real_eglGetCurrentContext();
+            
+            real_eglMakeCurrent(nativeDisplay, dummy, dummy, gl.lastContext);
+            // if making the context current doesn't work, it's probably destroyed already, so no cleanup necessary
+            if (real_eglGetError() != EGL_SUCCESS) return;
+            real_glDeleteRenderbuffers(2, (GLuint*)gl.renderbuffer);
+            real_glDeleteRenderbuffers(2, (GLuint*)gl.renderbufferDepth);
+            real_glDeleteFramebuffers(2, (GLuint*)gl.framebuffer);
+            
+            real_eglMakeCurrent(nativeDisplay, draw, read, ctx);
+        }
+    }
+    
 }

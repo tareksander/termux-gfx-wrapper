@@ -51,6 +51,7 @@ namespace egl_wrapper {
     __EGLvendorInfo *thisVendor = nullptr;
     bool hwbufferRenderingAvailable = true;
     bool hwbufferDMABUFAvailable = false;
+    bool hwbufferBGRAvailable = false;
     DisplayType defaultDisplayType = DisplayType::DEFAULT_DISPLAY_PLAYFORM;
     EGLDisplay nativeDisplay = EGL_NO_DISPLAY;
     X11Mode x11Mode = X11Mode::BLOCK;
@@ -116,6 +117,7 @@ namespace egl_wrapper {
 
 #define FUNC(name) __typeof__(name)* real_ ## name = nullptr;
     GLES2_0_FUNCS(FUNC)
+    GLES2_0_FUNCS_OPT(FUNC)
 #undef FUNC
 
     thread_local EGLint lastError = EGL_SUCCESS;
@@ -130,6 +132,8 @@ namespace egl_wrapper {
         fflush(stderr); \
         return EGL_FALSE; \
     }
+    
+    #define GLFUNC_OPT(fname) real_ ## fname = (decltype(real_ ## fname)) dlsym(nativeGLES2Library, #fname);
     
     /**
      * @brief Looks up an EGL function and errors if not found.
@@ -227,6 +231,7 @@ namespace egl_wrapper {
         EGLFUNC_OPT(eglGetNativeClientBufferANDROID)
 
         GLES2_0_FUNCS(GLFUNC)
+        GLES2_0_FUNCS_OPT(GLFUNC_OPT)
         
         // check needed EGL functions
         if ( // EGL 1.0-1.4 functions
@@ -413,16 +418,9 @@ namespace egl_wrapper {
         //fprintf(stderr, "hb: %d\n", (int) hwbufferRenderingAvailable);
         
         if (hwbufferRenderingAvailable) {
-            AHardwareBuffer* hb;
-            AHardwareBuffer_Desc desc{};
-            desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
-            desc.width = 2;
-            desc.height = 2;
-            desc.layers = 1;
-            desc.usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
-            if (libandroid.AHardwareBuffer_allocate(&desc, &hb) == 0) {
-                SmartHardwareBuffer shb{hb};
-                int fd = HBDMABUF(hb);
+            SmartHardwareBuffer shb{allocHB(AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, 2, 2, HBUsage)};
+            if (shb != nullptr) {
+                int fd = HBDMABUF(shb);
                 if (fd != -1) {
                     void* adr = mmap(nullptr, 4 * 4, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
                     if (adr != MAP_FAILED) {
@@ -438,9 +436,15 @@ namespace egl_wrapper {
             } else {
                 //fprintf(stderr, "could not create hardware buffer\n");
             }
+            SmartHardwareBuffer shb2{allocHB(HAL_PIXEL_FORMAT_BGRA_8888, 2, 2, HBUsage)};
+            if (shb2 != nullptr) {
+                hwbufferBGRAvailable = true;
+            }
         }
         //fprintf(stderr, "DMABUF: %d\n", (int) hwbufferDMABUFAvailable);
         //fflush(stderr);
+        
+        fprintf(stderr, "HAL_PIXEL_FORMAT_BGRA_8888: %d\n", (int) hwbufferBGRAvailable);
         
         // get the default platform backend from the env variable, if set
         const char* priority_backend = getenv(TERMUX_EGL_TYPE_ENV);
@@ -718,6 +722,20 @@ namespace egl_wrapper {
         //fprintf(stderr, "errno: %d\n", errno);
         //fflush(stderr);
         return -1;
+    }
+    
+    AHardwareBuffer* allocHB(AHardwareBuffer_Format format, uint32_t width, uint32_t height, uint64_t usage) {
+        AHardwareBuffer_Desc desc{};
+        desc.format = format;
+        desc.width = width;
+        desc.height = height;
+        desc.usage = usage;
+        desc.layers = 1;
+        AHardwareBuffer* out;
+        if (libandroid.AHardwareBuffer_allocate(&desc, &out) == 0)
+            return out;
+        else
+            return nullptr;
     }
 
 }
