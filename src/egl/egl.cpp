@@ -444,7 +444,7 @@ namespace egl_wrapper {
         //fprintf(stderr, "DMABUF: %d\n", (int) hwbufferDMABUFAvailable);
         //fflush(stderr);
         
-        fprintf(stderr, "HAL_PIXEL_FORMAT_BGRA_8888: %d\n", (int) hwbufferBGRAvailable);
+        //fprintf(stderr, "HAL_PIXEL_FORMAT_BGRA_8888: %d\n", (int) hwbufferBGRAvailable);
         
         // get the default platform backend from the env variable, if set
         const char* priority_backend = getenv(TERMUX_EGL_TYPE_ENV);
