@@ -960,7 +960,7 @@ namespace egl_wrapper {
     }
 
     EGLBoolean X11Display::eglSwapInterval(EGLint interval) {
-        return EGL_FALSE;
+        return EGL_TRUE;
     }
 
     EGLSurface X11Display::eglCreatePbufferFromClientBuffer(EGLenum buftype, EGLClientBuffer buffer, EGLConfig config, const EGLint* attrib_list) {

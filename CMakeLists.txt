@@ -76,6 +76,11 @@ target_include_directories(egl-android PRIVATE wayland src/common)
 
 install(TARGETS egl-android LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 10_android_wrapper.json DESTINATION ${CMAKE_INSTALL_PREFIX}/share/glvnd/egl_vendor.d/)
+add_custom_target(uninstall)
+add_custom_command(TARGET uninstall POST_BUILD COMMAND rm ARGS -v -f
+    ${CMAKE_INSTALL_PREFIX}/share/glvnd/egl_vendor.d/10_android_wrapper.json
+    ${CMAKE_INSTALL_PREFIX}/lib/libegl-android.so
+    )
 
 
  
