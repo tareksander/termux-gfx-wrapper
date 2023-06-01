@@ -700,7 +700,10 @@ namespace egl_wrapper {
                 auto backend = static_cast<HardwareBufferSurfaceBackend*>(w->backend.get());
                 if (w->presented && w->pData[w->currentP] != nullptr) {
                     // X11 uses the raw DMABUF memory, so we need to make sure to flush GL, so the changes make it to X
-                    real_glFinish();
+                    //real_glFinish();
+                    void* tmp;
+                    libandroid.AHardwareBuffer_lock(backend->buffers[backend->current], AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &tmp);
+                    libandroid.AHardwareBuffer_unlock(backend->buffers[backend->current], NULL);
                     // if (real_glGetError() != GL_NO_ERROR) {
                     //     lastError = EGL_BAD_CONTEXT;
                     //     dprintf(2, "real_glFinish\n");
