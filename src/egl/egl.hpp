@@ -240,6 +240,7 @@ namespace egl_wrapper {
         BLOCK, IDLE
     };
     
+    inline const char* const TERMUX_EGL_DISABLE_HWBUF_ENV = "TERMUX_EGL_DISABLE_HWBUF";
     
     inline const char* const PLATFORMS_STRING = 
     "EGL_KHR_platform_android"

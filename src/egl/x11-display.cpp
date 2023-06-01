@@ -250,18 +250,18 @@ namespace egl_wrapper {
         s->xcbC = xcbC;
         s->w = win;
         s->conf = config;
-        // if (hwbufferDMABUFAvailable) {
-        //     auto backend = std::make_unique<HardwareBufferSurfaceBackend>();
-        //     //backend->width = 1;
-        //     //backend->height = 1;
-        //     EGLint pbattribs[] = {
-        //         EGL_WIDTH, 1,
-        //         EGL_HEIGHT, 1,
-        //         EGL_NONE};
-        //     backend->dummy = real_eglCreatePbufferSurface(nativeDisplay, config, pbattribs);
-        //     if (backend->dummy == EGL_NO_SURFACE) return EGL_NO_SURFACE;
-        //     s->backend = std::move(backend);
-        // } else {
+        if (hwbufferDMABUFAvailable) {
+            auto backend = std::make_unique<HardwareBufferSurfaceBackend>();
+            //backend->width = 1;
+            //backend->height = 1;
+            EGLint pbattribs[] = {
+                EGL_WIDTH, 1,
+                EGL_HEIGHT, 1,
+                EGL_NONE};
+            backend->dummy = real_eglCreatePbufferSurface(nativeDisplay, config, pbattribs);
+            if (backend->dummy == EGL_NO_SURFACE) return EGL_NO_SURFACE;
+            s->backend = std::move(backend);
+        } else {
             auto backend = std::make_unique<PBufferSurfaceBackend>();
             backend->width = 1;
             backend->height = 1;
@@ -272,7 +272,7 @@ namespace egl_wrapper {
             backend->pbuffer = real_eglCreatePbufferSurface(nativeDisplay, config, pbattribs);
             if (backend->pbuffer == EGL_NO_SURFACE) return EGL_NO_SURFACE;
             s->backend = std::move(backend);
-        // }
+        }
         s->eid = xcb_generate_id(xcbC);
         s->ev = xcb_register_for_special_xge(xcbC, &xcb_present_id, s->eid, nullptr);
         if ((err = xcb_request_check(xcbC, xcb_present_select_input_checked(xcbC, s->eid, s->w, XCB_PRESENT_EVENT_MASK_IDLE_NOTIFY | XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY | XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY)))) {

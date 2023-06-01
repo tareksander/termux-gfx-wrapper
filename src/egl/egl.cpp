@@ -415,6 +415,10 @@ namespace egl_wrapper {
             break;
         }
         
+        if (getenv(TERMUX_EGL_DISABLE_HWBUF_ENV) != NULL) {
+            hwbufferRenderingAvailable = 0;
+        }
+        
         //fprintf(stderr, "hb: %d\n", (int) hwbufferRenderingAvailable);
         
         if (hwbufferRenderingAvailable) {
@@ -452,31 +456,39 @@ namespace egl_wrapper {
             std::string pb{priority_backend};
             if (pb == "NATIVE") {
                 defaultDisplayType = DisplayType::NATIVE;
-            } else if (pb == "WAYLAND") {
-                defaultDisplayType = DisplayType::WAYLAND;
-            } else if (pb == "X11") {
-                defaultDisplayType = DisplayType::X11;
-            } else {
+            } else
+            #ifdef WAYLAND_PLATFORM
+                if (pb == "WAYLAND") {
+                    defaultDisplayType = DisplayType::WAYLAND;
+                } else
+            #endif
+            #ifdef X11_PLATFORM
+                if (pb == "X11") {
+                    defaultDisplayType = DisplayType::X11;
+                } else
+            #endif
+            {
                 fprintf(stderr, "ERROR: Invalid value for 'TERMUX_EGL_DEFAULT' environment variable: %s\n", priority_backend);
                 fflush(stderr);
                 return EGL_FALSE;
             }
         }
         
-        const char* envX11Mode = getenv(TERMUX_EGL_X11_MODE_ENV);
-        if (envX11Mode != nullptr) {
-            std::string mode{envX11Mode};
-            if (mode == "BLOCK") {
-                x11Mode = X11Mode::BLOCK;
-            } else if (mode == "IDLE") {
-                x11Mode = X11Mode::IDLE;
-            }  else {
-                fprintf(stderr, "ERROR: Invalid value for 'TERMUX_EGL_X11_MODE' environment variable: %s\n", envX11Mode);
-                fflush(stderr);
-                return EGL_FALSE;
+        #ifdef X11_PLATFORM
+            const char* envX11Mode = getenv(TERMUX_EGL_X11_MODE_ENV);
+            if (envX11Mode != nullptr) {
+                std::string mode{envX11Mode};
+                if (mode == "BLOCK") {
+                    x11Mode = X11Mode::BLOCK;
+                } else if (mode == "IDLE") {
+                    x11Mode = X11Mode::IDLE;
+                }  else {
+                    fprintf(stderr, "ERROR: Invalid value for 'TERMUX_EGL_X11_MODE' environment variable: %s\n", envX11Mode);
+                    fflush(stderr);
+                    return EGL_FALSE;
+                }
             }
-        }
-        
+        #endif
         
         return EGL_TRUE;
     }
