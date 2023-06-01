@@ -479,8 +479,14 @@ namespace egl_wrapper {
                 /// The next Pixmap to render to
                 uint8_t currentP = 0;
                 
+                /// Heuristic for the time it takes to process an image before being able to send it to X, in microseconds.
+                /// This should be the approximate time point when a call eglSwapBuffers actually sends the buffer to X.
+                uint64_t postProcessingTime = 0;
+                /// @brief  Timestamp for the last present complete event.
+                uint64_t lastPresented = 0;
                 
-               virtual ~WindowSurface();
+                
+                virtual ~WindowSurface();
                 
             };
             

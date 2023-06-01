@@ -33,6 +33,8 @@ static inline int memfd_create(const char *name, unsigned int flags) {
 
 #include "format.hpp"
 
+#include <chrono>
+
 static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret = -1;
@@ -664,7 +666,11 @@ namespace egl_wrapper {
                     }
                 }
                 if (pe->evtype == XCB_PRESENT_COMPLETE_NOTIFY) {
+                    xcb_present_complete_notify_event_t* ce = reinterpret_cast<xcb_present_complete_notify_event_t*>(pe);
                     w->presented = true;
+                    if (ce->mode != XCB_PRESENT_COMPLETE_MODE_SKIP) {
+                        w->lastPresented = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    }
                 }
             }
             while (! w->pNotified[w->currentP] || ((! w->presented) && x11Mode == X11Mode::BLOCK)) {
@@ -899,8 +905,12 @@ namespace egl_wrapper {
                     real_eglMakeCurrent(nativeDisplay, Surface::getSurface(w), Surface::getSurface(w), Context::getContext((Context*) glvnd->getCurrentContext()));
                     //dprintf(2, "draw resize\n");
                 } else {
-                    // only present the buffer to the pixmap if the last one completed
-                    if (w->presented) {
+                    uint64_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                    // only present the buffer to the pixmap if the last one completed, or we need to for the frame to arrive in time
+                    if (w->presented || now + w->postProcessingTime >= w->lastPresented + 16000) {
+                        // if (now >= w->lastPresented + w->postProcessingTime) {
+                        //     dprintf(2, "early\n");
+                        // }
                         // set the alignment, if it was changed, the reading would be broken
                         
                         GLint align;
@@ -923,6 +933,8 @@ namespace egl_wrapper {
                             free(err);
                             return EGL_FALSE;
                         }
+                        w->postProcessingTime = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - now) * 2;
+                        // dprintf(2, "time: %llu\n", w->postProcessingTime);
                         w->pNotified[w->currentP] = false;
                         //dprintf(2, "draw %d %d %d %d\n", w->wWidth, w->wHeight, w->pWidth, w->pHeight);
                         w->currentP = (w->currentP + 1) % 2;
