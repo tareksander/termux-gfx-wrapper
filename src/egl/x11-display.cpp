@@ -434,7 +434,7 @@ namespace egl_wrapper {
             Surface* oldSurface = (Surface*) oldEGLSurface;
             if (oldSurface->backend->type == SurfaceBackend::Type::HWBUFFER) {
                 auto backend = static_cast<HardwareBufferSurfaceBackend*>(oldSurface->backend.get());
-                if (backend->gl.lastContext != EGL_NO_CONTEXT) {
+                if (backend->gl.lastContext != EGL_NO_CONTEXT && (ctx != backend->gl.lastContext || backend->regenerateGL)) {
                     real_glDeleteRenderbuffers(2, (GLuint*)(backend->gl.renderbuffer));
                     real_glDeleteRenderbuffers(2, (GLuint*)(backend->gl.renderbufferDepth));
                     real_glDeleteFramebuffers(2, (GLuint*)(backend->gl.framebuffer));
@@ -459,6 +459,9 @@ namespace egl_wrapper {
                         dprintf(2, "EGLImage none\n");
                         continue;
                     }
+                    
+                    // already created
+                    if (backend->gl.framebuffer[i] != -1) continue;
                     
                     // save old bindings
                     GLint rb, fb;
@@ -597,7 +600,7 @@ namespace egl_wrapper {
                 //     return EGL_FALSE;
                 // }
                 // dprintf(2, "vp: %d, %d, %d, %d\n", vp[0], vp[1], vp[2], vp[3]);
-                if (fb == 0 && backend->gl.framebuffer[backend->current] != -1) {
+                if ((fb == 0 || fb == backend->gl.framebuffer[(backend->current + 1) % 2]) && backend->gl.framebuffer[backend->current] != -1) {
                     //dprintf(2, "fb 0 bound, redirecting to fb %d\n", backend->gl.framebuffer[backend->current]);
                     real_glBindFramebuffer(GL_FRAMEBUFFER, backend->gl.framebuffer[backend->current]);
                 }
@@ -700,10 +703,10 @@ namespace egl_wrapper {
                 auto backend = static_cast<HardwareBufferSurfaceBackend*>(w->backend.get());
                 if (w->presented && w->pData[w->currentP] != nullptr) {
                     // X11 uses the raw DMABUF memory, so we need to make sure to flush GL, so the changes make it to X
-                    //real_glFinish();
-                    void* tmp;
-                    libandroid.AHardwareBuffer_lock(backend->buffers[backend->current], AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &tmp);
-                    libandroid.AHardwareBuffer_unlock(backend->buffers[backend->current], NULL);
+                    real_glFinish();
+                    // void* tmp;
+                    // libandroid.AHardwareBuffer_lock(backend->buffers[backend->current], AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &tmp);
+                    // libandroid.AHardwareBuffer_unlock(backend->buffers[backend->current], NULL);
                     // if (real_glGetError() != GL_NO_ERROR) {
                     //     lastError = EGL_BAD_CONTEXT;
                     //     dprintf(2, "real_glFinish\n");
@@ -784,6 +787,7 @@ namespace egl_wrapper {
                     w->pHeight[w->currentP] = w->wHeight;
                     backend->buffers[w->currentP] = hb;
                     backend->images[w->currentP] = std::move(hbi);
+                    backend->regenerateGL = true;
                     
                     w->pFD[w->currentP] = HBDMABUF(hb);
                     w->pData[w->currentP] = mmap(nullptr, w->pWidth[w->currentP] * w->pHeight[w->currentP] * 4, PROT_READ | PROT_WRITE, MAP_SHARED, w->pFD[w->currentP], 0);

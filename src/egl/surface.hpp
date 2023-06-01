@@ -111,6 +111,8 @@ namespace egl_wrapper {
         /// A dummy pbuffer surface, so you can use makeCurrent with something
         EGLSurface dummy = EGL_NO_SURFACE;
         
+        bool regenerateGL = false;
+        
         
         HardwareBufferSurfaceBackend() : SurfaceBackend{SurfaceBackend::Type::HWBUFFER} {}
         virtual ~HardwareBufferSurfaceBackend();
